@@ -308,14 +308,18 @@ def main(config):
     # set wandb logger
     wandb_name = config.name
     wandb.init(
+        # mode="disabled",
         mode="disabled" if config.wandb_disable else None,
         name=wandb_name,
-        project='gaussian-splatting-avatar',
-        entity='fast-avatar',
+        # project='gaussian-splatting-avatar',
+        project='3dgs',
+        entity='digitalhumans',
         dir=config.exp_dir,
         config=OmegaConf.to_container(config, resolve=True),
         settings=wandb.Settings(start_method='fork'),
     )
+
+
 
     print("Optimizing " + config.exp_dir)
 

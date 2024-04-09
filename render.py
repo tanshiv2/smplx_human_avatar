@@ -179,7 +179,8 @@ def main(config):
         config.suffix = config.suffix + '-freeview'
     wandb_name = config.name + '-' + config.suffix
     wandb.init(
-        mode="disabled" if config.wandb_disable else None,
+        # mode="disabled" if config.wandb_disable else None,
+        mode="disabled",
         name=wandb_name,
         project='gaussian-splatting-avatar-test',
         entity='fast-avatar',

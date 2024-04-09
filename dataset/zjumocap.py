@@ -55,6 +55,7 @@ class ZJUMoCapDataset(Dataset):
         else:
             raise ValueError
 
+        # print(os.path.abspath(os.path.join(self.root_dir, self.subject, 'cam_params.json')))
         with open(os.path.join(self.root_dir, self.subject, 'cam_params.json'), 'r') as f:
             self.cameras = json.load(f)
 
