@@ -26,6 +26,7 @@ class X_HumansDataset(Dataset):
         # change in conf
         # ../../data/00036/train/
         self.root_dir = cfg.root_dir
+        self.root_dir = os.path.join("../../data/X_Humans/00036", self.split)  
 
         # Take1
         self.subject = cfg.subject
@@ -68,7 +69,21 @@ class X_HumansDataset(Dataset):
         with open(os.path.join(self.root_dir, self.subject, 'render/cameras.npz'), 'r') as f:
             self.cameras = json.load(f)
 
-        self.cameras = [ {'K': self.cameras['intrinsic'], 'R': ex, 'T': ex} for ex in self.cameras['extrinsic']]
+        camera_npz = np.load(os.path.join(self.root_dir, self.subject, 'render/cameras.npz'))
+        extrinsic = camera_npz['extrinsic']
+        # extrac R T from extrinsic
+        # need to consider wether to invert the extrinsic
+        # extrinsic = np.linalg.inv(extrinsic)
+        R = extrinsic[:, :3, :3]
+        T = extrinsic[:, :3, 3]
+        intrinsic = camera_npz['intrinsic']
+        K = intrinsic[ :3, :3]
+        D = np.zeros((1,5))
+
+        cam_names = [str(i) for i in range(len(extrinsic))]
+        self.cameras = {str(i): {'K': K, 'D': D, 'R': R[i], 'T': T[i]} for i in range(len(extrinsic))} 
+        self.cameras['all_cam_names'] = cam_names
+
         # zju has one json camera for one scene(has multiple camera view), in the format of {allcameranames:['1',...,], '1':{K:, D:, R:, T:}}
         # for example all images in Coreview_377/1 has same camera setting
         # images with same name are of same pose, Coreview_377/1/00000.jpg and CoreView_377/2/00000.jpg --- to be valided
@@ -92,6 +107,9 @@ class X_HumansDataset(Dataset):
 
 
         start_frame, end_frame, sampling_rate = frames
+        start_frame, end_frame, sampling_rate = [0,0,1]
+
+
 
         subject_dir = os.path.join(self.root_dir, self.subject)
         if split == 'predict':
@@ -122,6 +140,7 @@ class X_HumansDataset(Dataset):
             frame_slice = slice(start_frame, end_frame, sampling_rate)
             model_files = model_files[frame_slice]
             frames = frames[frame_slice]
+
 
         # add freeview rendering
         # init false
@@ -159,27 +178,22 @@ class X_HumansDataset(Dataset):
             #         })
         else:
             # loop over images 
+            img_files = sorted(glob.glob(os.path.join(subject_dir, 'render/image/*.png')))[frame_slice]
+            mask_files = sorted(glob.glob(os.path.join(subject_dir, 'render/depth/*.tiff')))[frame_slice]
 
-
-            for cam_idx, cam_name in enumerate(cam_names):
-                cam_dir = os.path.join(subject_dir, cam_name)
-                img_files = sorted(glob.glob(os.path.join(cam_dir, '*.jpg')))[frame_slice]
-                mask_files = sorted(glob.glob(os.path.join(cam_dir, '*.png')))[frame_slice]
-
-                for d_idx, f_idx in enumerate(frames):
-                    img_file = img_files[d_idx]
-                    mask_file = mask_files[d_idx]
-                    model_file = model_files[d_idx]
-
-                    self.data.append({
-                        'cam_idx': cam_idx,
-                        'cam_name': cam_name,
-                        'data_idx': d_idx,
-                        'frame_idx': f_idx,
-                        'img_file': img_file,
-                        'mask_file': mask_file,
-                        'model_file': model_file,
-                    })
+            for d_idx, f_idx in enumerate(frames):
+                img_file = img_files[d_idx]
+                mask_file = mask_files[d_idx]
+                model_file = model_files[d_idx]
+                self.data.append({
+                    'cam_idx': d_idx,
+                    'cam_name': cam_names[d_idx],
+                    'data_idx': d_idx,
+                    'frame_idx': f_idx,
+                    'img_file': img_file,
+                    'mask_file': mask_file,
+                    'model_file': model_file,
+                })
 
         self.frames = frames
         self.model_files_list = model_files
