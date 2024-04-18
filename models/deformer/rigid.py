@@ -128,13 +128,15 @@ def hierarchical_softmax(x):
     # prob_all = prob_all.reshape(n_batch, n_point, prob_all.shape[-1])
     return prob_all
 
+# need to change here
 class SkinningField(RigidDeform):
     def __init__(self, cfg, metadata):
         super().__init__(cfg)
         self.smpl_verts = metadata["smpl_verts"]
         self.skinning_weights = metadata["skinning_weights"]
         self.aabb = metadata["aabb"]
-        self.faces = np.load('body_models/misc/faces.npz')['faces']
+        # self.faces = np.load('body_models/misc/faces.npz')['faces']
+        self.faces = metadata['faces']
         self.cano_mesh = metadata["cano_mesh"]
 
         self.distill = cfg.distill

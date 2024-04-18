@@ -116,6 +116,7 @@ def get_hannw_embedder(cfg, multires, iter_val,):
     embed = lambda x, eo=embedder_obj: eo.embed(x)
     return embed, embedder_obj.out_dim
 
+# need to chaneg here for smplx
 class HierarchicalPoseEncoder(nn.Module):
     '''Hierarchical encoder from LEAP.'''
 

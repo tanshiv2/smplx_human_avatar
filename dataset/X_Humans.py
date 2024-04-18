@@ -24,12 +24,13 @@ class X_HumansDataset(Dataset):
         self.split = split
 
         # change in conf
-        # ../../data/00036/train/
+        # ../../data/X_Humans/00036/train/
         self.root_dir = cfg.root_dir
         self.root_dir = os.path.join("../../data/X_Humans/00036", self.split)  
 
         # Take1
         self.subject = cfg.subject
+        self.subject = "Take1"
         # keep the same?
         self.train_frames = cfg.train_frames
         # need to 
