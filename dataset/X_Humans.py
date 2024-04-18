@@ -36,7 +36,8 @@ class X_HumansDataset(Dataset):
         self.val_frames = cfg.val_frames
         # self.val_cams = cfg.val_views
         self.white_bg = cfg.white_background
-        self.H, self.W = 1024, 1024 # hardcoded original size
+        # Each image in X-Humans is 1200*800 by default
+        self.H, self.W = 1200, 800 
         self.h, self.w = cfg.img_hw
 
         # need to cater for SMPLX
@@ -65,10 +66,13 @@ class X_HumansDataset(Dataset):
 
         # need camera here
         # ../../data/00036/train/Take1/render/cameras.npz
-        with open(os.path.join(self.root_dir, self.subject, 'render/cameras.npz'), 'r') as f:
-            self.cameras = json.load(f)
+        # with open(os.path.join(self.root_dir, self.subject, 'render/cameras.npz'), 'r') as f:
+        #     self.cameras = json.load(f)
+        self.cameras = np.load(os.path.join(self.root_dir, self.subject, 'render/cameras.npz'))
 
         self.cameras = [ {'K': self.cameras['intrinsic'], 'R': ex, 'T': ex} for ex in self.cameras['extrinsic']]
+        cam_names = os.listdir(os.path.join(self.root_dir, self.subject, 'render/image'))
+        cam_names = [n.replace("color_", "").replace(".png", "") for n in cam_names]
         # zju has one json camera for one scene(has multiple camera view), in the format of {allcameranames:['1',...,], '1':{K:, D:, R:, T:}}
         # for example all images in Coreview_377/1 has same camera setting
         # images with same name are of same pose, Coreview_377/1/00000.jpg and CoreView_377/2/00000.jpg --- to be valided
@@ -91,7 +95,7 @@ class X_HumansDataset(Dataset):
         #     cam_names = [f'{int(cam_name) - 1:02d}' for cam_name in cam_names]
 
 
-        start_frame, end_frame, sampling_rate = frames
+        start_frame, end_frame, sampling_rate = 1, len(self.cameras), 1
 
         subject_dir = os.path.join(self.root_dir, self.subject)
         if split == 'predict':
@@ -130,7 +134,7 @@ class X_HumansDataset(Dataset):
             #     self.cameras = json.load(f)
             # what is inside data/ZJUMoCap/CoreView_377/models/000000.npz, is it similar to data/00036/train/Take1/SMPL/mesh-f00001_smpl.pkl?
             model_dict = np.load(model_files[0])
-            trans = model_dict['trans'].astype(np.float32)
+            trans = model_dict['transl'].astype(np.float32)
             self.cameras = freeview_camera(self.cameras[0], trans)
             # cam_names = self.cameras['all_cam_names']
 
@@ -162,8 +166,9 @@ class X_HumansDataset(Dataset):
 
 
             for cam_idx, cam_name in enumerate(cam_names):
-                cam_dir = os.path.join(subject_dir, cam_name)
-                img_files = sorted(glob.glob(os.path.join(cam_dir, '*.jpg')))[frame_slice]
+                cam_dir = os.path.join(subject_dir, "render/image/")
+                # kept these files as png instead of jpg because no jpg in xhumans
+                img_files = sorted(glob.glob(os.path.join(cam_dir, '*.png')))[frame_slice]
                 mask_files = sorted(glob.glob(os.path.join(cam_dir, '*.png')))[frame_slice]
 
                 for d_idx, f_idx in enumerate(frames):
@@ -226,7 +231,7 @@ class X_HumansDataset(Dataset):
 
     def get_cano_smpl_verts(self, data_path):
         '''
-            Compute star-posed SMPL body vertices.
+            Compute star-posed SMPLX body vertices.
             To get a consistent canonical space,
             we do not add pose blend shape
         '''

@@ -1,0 +1,36 @@
+# @package _global_
+
+dataset_name: X_Humans_00036
+
+dataset:
+  name: X_Humans
+  root_dir: "../../data/X_Humans/"
+  subject: "00036/train/Take1/"
+  refine: false
+
+  train_views: [ 'train']
+  val_views: ['2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', '23']
+  test_views:
+    view: ${dataset.val_views}
+    video: ['12']
+    all: []
+  predict_views: ['1']
+
+#change this to maximum number of frames in any image folder in X-Humans
+  train_frames: [ 0, 570, 1 ]
+  val_frames: [ 0, 1, 1 ]
+  test_frames:
+    view: [0, 570, 30]
+    video: [0, 570, 1]
+    all: [0, 570, 1]
+  predict_frames: [0, 0, 1]
+
+  img_hw:
+    - 512
+    - 512
+
+  lanczos: false
+  resolution: -1
+  white_background: false
+  data_device: cuda
+  eval: false

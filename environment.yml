@@ -1,4 +1,4 @@
-name: 3dgs-avatar
+name: smplx-human-avatar
 channels:
   - pytorch3d
   - pytorch
