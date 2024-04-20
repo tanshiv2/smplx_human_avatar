@@ -78,6 +78,10 @@ def lbs(betas, pose, v_template, clothed_v_template, shapedirs, posedirs, J_regr
     device = betas.device
 
     # Add shape contribution
+    # shapedirs = shapedirs[ ... ,  : betas.shape[0]]
+    # batch size always 1?
+    # betas = betas.view(1,-1)
+    # import ipdb; ipdb.set_trace()
     v_shaped = v_template + blend_shapes(betas, shapedirs)
 
     # Get the joints

@@ -67,6 +67,8 @@ class X_HumansDataset(Dataset):
             self.skinning_weights = dict(np.load('body_models/misc/skinning_weights_all_smplx.npz'))
             self.posedirs = dict(np.load('body_models/misc/posedirs_all_smplx.npz'))
             self.J_regressor = dict(np.load('body_models/misc/J_regressors_smplx.npz'))
+            # shape of [batch_size, beta_num]
+            # self.betas = np.load(os.path.join(self.root_dir, "mean_shape_smplx.npy"))[None, :]
 
             self.v_templates = np.load('body_models/misc/v_templates_smplx.npz')
             self.shapedirs = dict(np.load('body_models/misc/shapedirs_all_smplx.npz'))
@@ -280,6 +282,8 @@ class X_HumansDataset(Dataset):
         # to a star-shaped A-pose (i.e. Vitruvian A-pose)
 
         bone_transforms_02v = get_02v_bone_transforms(Jtr)
+        # bone_transforms_02v = np.stack([np.eye(4) for _ in range(len(Jtr))]) 
+        # bone transform here is 24, wrong, need to be 55
         T = np.matmul(skinning_weights, bone_transforms_02v.reshape([-1, 16])).reshape([-1, 4, 4])
         vertices = np.matmul(T[:, :3, :3], minimal_shape[..., np.newaxis]).squeeze(-1) + T[:, :3, -1]
 

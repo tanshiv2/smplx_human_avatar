@@ -20,7 +20,7 @@ def get_transforms_02v(Jtr):
     # Specify the bone transformations that transform a SMPL A-pose mesh
     # to a star-shaped A-pose (i.e. Vitruvian A-pose)
 
-    bone_transforms_02v = torch.eye(4, dtype=torch.float32, device=device).reshape(1, 4, 4).repeat(24, 1, 1)
+    # bone_transforms_02v = torch.eye(4, dtype=torch.float32, device=device).reshape(1, 4, 4).repeat(24, 1, 1)
     # do that to cater for smplx ?
     bone_transforms_02v = torch.eye(4, dtype=torch.float32, device=device).reshape(1, 4, 4).repeat(len(Jtr), 1, 1)
 
