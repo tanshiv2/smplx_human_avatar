@@ -19,14 +19,20 @@ class X_HumansDataset(Dataset):
     def __init__(self, cfg, split='train'):
         super().__init__()
         self.cfg = cfg
-        self.split = split
-
+        
         # change in conf
         # ../../data/00036/train/
         self.root_dir = cfg.root_dir
 
         # Take1
-        self.subject = cfg.subject
+        if split == 'train':
+            self.subject = cfg.get('train_subject', 'Take1')
+        else:
+            # val test predict all group to test
+            split = "test"
+            self.subject = cfg.get('test_subject', 'Take8')
+        self.split = split
+
         # keep the same?
         self.train_frames = cfg.train_frames
         # need to 
@@ -38,7 +44,10 @@ class X_HumansDataset(Dataset):
         self.h, self.w = cfg.img_hw
 
         self.model_type = cfg.model_type
-        assert self.model_type in ['smpl', 'smplx']
+        # safely set it as smpl
+        if not self.model_type in ['smpl', 'smplx']:
+            self.model_type = 'smpl'
+        # assert self.model_type in ['smpl', 'smplx']
 
         # need to cater for SMPLX
         if self.model_type == 'smpl':
@@ -47,12 +56,21 @@ class X_HumansDataset(Dataset):
             self.posedirs = dict(np.load('body_models/misc/posedirs_all.npz'))
             self.J_regressor = dict(np.load('body_models/misc/J_regressors.npz'))
             self.betas = np.load(os.path.join(self.root_dir, "mean_shape_smpl.npy"))
+
+            self.v_templates = np.load('body_models/misc/v_templates.npz')
+            self.shapedirs = np.load('body_models/misc/shapedirs_all.npz')
+            self.kintree_table = np.load('body_models/misc/kintree_table.npy')
+
         elif self.model_type == 'smplx':
             self.faces = np.load('body_models/misc/faces_smplx.npz')['faces']
             self.skinning_weights = dict(np.load('body_models/misc/skinning_weights_all_smplx.npz'))
             self.posedirs = dict(np.load('body_models/misc/posedirs_all_smplx.npz'))
             self.J_regressor = dict(np.load('body_models/misc/J_regressors_smplx.npz'))
             self.betas = np.load(os.path.join(self.root_dir, "mean_shape_smplx.npy"))
+
+            self.v_templates = np.load('body_models/misc/v_templates_smplx.npz')
+            self.shapedirs = np.load('body_models/misc/shapedirs_all_smplx.npz')
+            self.kintree_table = np.load('body_models/misc/kintree_table_smplx.npy')
 
         with open(os.path.join(self.root_dir, "gender.txt")) as f:
             self.gender = f.readlines()
@@ -64,7 +82,8 @@ class X_HumansDataset(Dataset):
         elif split == 'val':
             frames = self.val_frames
         elif split == 'test':
-            frames = self.cfg.test_frames[self.cfg.test_mode]
+            # frames = self.cfg.test_frames[self.cfg.test_mode]
+            frames = self.val_frames
         elif split == 'predict':
             frames = self.cfg.predict_frames
         else:
@@ -185,6 +204,7 @@ class X_HumansDataset(Dataset):
         self.frames = frames
         self.model_files_list = model_files
 
+        # import ipdb; ipdb.set_trace()
         self.get_metadata()
 
         self.preload = cfg.get('preload', True)
@@ -219,6 +239,9 @@ class X_HumansDataset(Dataset):
             'J_regressor': self.J_regressor,
             'cameras_extent': 3.469298553466797, # hardcoded, used to scale the threshold for scaling/image-space gradient
             'frame_dict': frame_dict,
+            'v_templates': self.v_templates,
+            'shapedirs': self.shapedirs,
+            'kintree_table': self.kintree_table,
         }
         self.metadata.update(cano_data)
         if self.cfg.train_smpl:
@@ -251,8 +274,10 @@ class X_HumansDataset(Dataset):
         skinning_weights = self.skinning_weights[gender]
         # Get bone transformations that transform a SMPL A-pose mesh
         # to a star-shaped A-pose (i.e. Vitruvian A-pose)
+        
         bone_transforms_02v = get_02v_bone_transforms(Jtr)
-
+        bone_transforms_02v = np.stack([np.eye(4) for _ in range(len(Jtr))]) 
+        # bone transform here is 24, wrong, need to be 55
         T = np.matmul(skinning_weights, bone_transforms_02v.reshape([-1, 16])).reshape([-1, 4, 4])
         vertices = np.matmul(T[:, :3, :3], minimal_shape[..., np.newaxis]).squeeze(-1) + T[:, :3, -1]
 
@@ -265,7 +290,6 @@ class X_HumansDataset(Dataset):
         coord_min -= padding
 
         cano_mesh = trimesh.Trimesh(vertices=vertices.astype(np.float32), faces=self.faces)
-
         return {
             'gender': gender,
             'smpl_verts': vertices.astype(np.float32),
@@ -307,7 +331,8 @@ class X_HumansDataset(Dataset):
                 smpl_data['pose_hand'].append(np.concatenate([model_dict['left_hand_pose'], model_dict['right_hand_pose']]).astype(np.float32))
                 smpl_data['pose_eye'].append(np.concatenate([model_dict['leye_pose'], model_dict['reye_pose']]).astype(np.float32))
                 smpl_data['pose_jaw'].append(model_dict['jaw_pose'].astype(np.float32))
-                smpl_data['expression'].append(model_dict['expression'].astype(np.float32))
+                # expression forget to save in preprocess
+                # smpl_data['expression'].append(model_dict['expression'].astype(np.float32))
 
         return smpl_data
 

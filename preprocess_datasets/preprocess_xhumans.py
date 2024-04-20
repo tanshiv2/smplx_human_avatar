@@ -12,6 +12,7 @@ from preprocess_datasets.easymocap.smplmodel import load_model
 if __name__ == '__main__':
     root_dir = '../../data/X_Humans/00036/'
     split = 'train'
+    split = 'test'
     model_type = 'smplx'
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     gender = 'female'
@@ -66,7 +67,7 @@ if __name__ == '__main__':
                 new_trans_torch = torch.from_numpy(new_trans).to(device)
 
                 body = body_model(betas=full_betas_torch)
-                import ipdb; ipdb.set_trace()
+                # import ipdb; ipdb.set_trace()
                 minimal_shape = body.v.detach().cpu().numpy()[0]
 
                 pose_hand_torch = torch.cat([pose_left_hand_torch, pose_right_hand_torch], axis=-1)
@@ -108,7 +109,9 @@ if __name__ == '__main__':
                          leye_pose=pose_lefteye[0],
                          reye_pose=pose_righteye[0],
                          left_hand_pose=pose_lefthand[0],
-                         right_hand_pose=pose_righthand[0])
+                         right_hand_pose=pose_righthand[0],                         
+                         expression=expression[0]),
+
     elif model_type == 'smpl':
         raise NotImplementedError('SMPL model not implemented yet.')
 

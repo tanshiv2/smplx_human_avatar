@@ -1,0 +1,26 @@
+# @package _global_
+
+dataset_name: xh_00036
+
+dataset:
+  name: x_humans
+  root_dir: "../../data/X_Humans/00036"
+
+  train_subject: Take1
+  test_subjects: Take8
+  model_type: smplx
+  train_frames: [ 0, 145, 1 ]
+  val_frames: [ 0, 145, 1 ]
+  test_frames:
+    pose: [ 0, 145, 1 ]
+    all:  [ 0, 145, 1 ]
+  predict_frames: [0, 0, 1]
+
+  img_hw:
+    - 540
+    - 540
+
+  resolution: -1
+  white_background: false
+  data_device: cuda
+  eval: false

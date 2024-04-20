@@ -46,6 +46,9 @@ class X_HumansDataset(Dataset):
         self.skinning_weights = dict(np.load('body_models/misc/skinning_weights_all.npz'))
         self.posedirs = dict(np.load('body_models/misc/posedirs_all.npz'))
         self.J_regressor = dict(np.load('body_models/misc/J_regressors.npz'))
+        self.v_templates = np.load('body_models/misc/v_templates.npz')
+        self.shapedirs = np.load('body_models/misc/shapedirs_all.npz')
+        self.kintree_table = np.load('body_models/misc/kintree_table.npy')
 
 
         # if split == 'train':
@@ -233,6 +236,9 @@ class X_HumansDataset(Dataset):
             'J_regressor': self.J_regressor,
             'cameras_extent': 3.469298553466797, # hardcoded, used to scale the threshold for scaling/image-space gradient
             'frame_dict': frame_dict,
+            'v_templates': self.v_templates,
+            'shapedirs': self.shapedirs,
+            'kintree_table': self.kintree_table,
         }
         self.metadata.update(cano_data)
         if self.cfg.train_smpl:

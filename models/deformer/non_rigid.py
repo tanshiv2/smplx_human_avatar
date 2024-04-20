@@ -191,6 +191,7 @@ class HannwMLP(NonRigidDeform):
 class HashGridwithMLP(NonRigidDeform):
     def __init__(self, cfg, metadata):
         super().__init__(cfg)
+        # metadata has kintree_table
         self.pose_encoder = HierarchicalPoseEncoder(**cfg.pose_encoder)
         d_cond = self.pose_encoder.n_output_dims
 

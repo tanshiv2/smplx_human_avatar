@@ -138,14 +138,17 @@ class SkinningField(RigidDeform):
         # self.faces = np.load('body_models/misc/faces.npz')['faces']
         self.faces = metadata['faces']
         self.cano_mesh = metadata["cano_mesh"]
-
+        
         self.distill = cfg.distill
         d, h, w = cfg.res // cfg.z_ratio, cfg.res, cfg.res
         self.resolution = (d, h, w)
         if self.distill:
             self.grid = create_voxel_grid(d, h, w).cuda()
 
+
         self.lbs_network = get_skinning_mlp(3, cfg.d_out, cfg.skinning_network)
+        # need to further check d_out is the num_joint?
+        self.d_out = cfg.d_out
 
 
     def precompute(self, recompute_skinning=True):
@@ -169,6 +172,7 @@ class SkinningField(RigidDeform):
         else:
             pts_W = self.lbs_network(xyz)
             pts_W = self.softmax(pts_W)
+            # import ipdb; ipdb.set_trace()
             T_fwd = torch.matmul(pts_W, tfs.view(-1, 16)).view(-1, 4, 4).float()
         return T_fwd
 
@@ -189,9 +193,12 @@ class SkinningField(RigidDeform):
         return points_skinning, pts_W
 
     def softmax(self, logit):
-        if logit.shape[-1] == 25:
-            w = hierarchical_softmax(logit)
-        elif logit.shape[-1] == 24:
+        # if logit.shape[-1] == 25:
+        if logit.shape[-1] == self.d_out:
+            # w = hierarchical_softmax(logit)
+            w = F.softmax(logit, dim=-1)
+        # elif logit.shape[-1] == 24:
+        elif logit.shape[-1] == (self.d_out-1):
             w = F.softmax(logit, dim=-1)
         else:
             raise ValueError
@@ -250,5 +257,7 @@ def get_rigid_deform(cfg, metadata):
         "identity": Identity,
         "smpl_nn": SMPLNN,
         "skinning_field": SkinningField,
+        "skinning_field_smplx": SkinningField,
+        
     }
     return model_dict[name](cfg, metadata)
