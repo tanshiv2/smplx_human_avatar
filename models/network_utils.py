@@ -126,9 +126,14 @@ class HierarchicalPoseEncoder(nn.Module):
         self.num_joints = num_joints
         self.rel_joints = rel_joints
         # cfg.kintree_table
-        self.ktree_parents = np.array([-1,  0,  0,  0,  1,  2,  3,  4,  5,  6,  7,  8,
+        if (num_joints == 24):
+            self.ktree_parents = np.array([-1,  0,  0,  0,  1,  2,  3,  4,  5,  6,  7,  8,
             9,  9,  9, 12, 13, 14, 16, 17, 18, 19, 20, 21], dtype=np.int32)
-
+        else:
+            self.ktree_parents = np.array([-1,  0,  0,  0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  9,  9, 12,
+        13, 14, 16, 17, 18, 19, 15, 15, 15, 20, 25, 26, 20, 28, 29, 20,
+        31, 32, 20, 34, 35, 20, 37, 38, 21, 40, 41, 21, 43, 44, 21, 46,
+        47, 21, 49, 50, 21, 52, 53], dtype = np.int32)
         self.layer_0 = nn.Linear(9*num_joints + 3*num_joints, dim_per_joint)
         dim_feat = 13 + dim_per_joint
 

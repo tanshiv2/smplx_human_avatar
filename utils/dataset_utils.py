@@ -12,7 +12,7 @@ def get_02v_bone_transforms(Jtr,):
 
     # Specify the bone transformations that transform a SMPL A-pose mesh
     # to a star-shaped A-pose (i.e. Vitruvian A-pose)
-    bone_transforms_02v = np.tile(np.eye(4), (24, 1, 1))
+    bone_transforms_02v = np.tile(np.eye(4), (Jtr.shape[0], 1, 1))
 
     # First chain: L-hip (1), L-knee (4), L-ankle (7), L-foot (10)
     chain = [1, 4, 7, 10]
