@@ -116,6 +116,7 @@ def get_hannw_embedder(cfg, multires, iter_val,):
     embed = lambda x, eo=embedder_obj: eo.embed(x)
     return embed, embedder_obj.out_dim
 
+# need to chaneg here for smplx
 class HierarchicalPoseEncoder(nn.Module):
     '''Hierarchical encoder from LEAP.'''
 
@@ -124,6 +125,7 @@ class HierarchicalPoseEncoder(nn.Module):
 
         self.num_joints = num_joints
         self.rel_joints = rel_joints
+        # cfg.kintree_table
         self.ktree_parents = np.array([-1,  0,  0,  0,  1,  2,  3,  4,  5,  6,  7,  8,
             9,  9,  9, 12, 13, 14, 16, 17, 18, 19, 20, 21], dtype=np.int32)
 
