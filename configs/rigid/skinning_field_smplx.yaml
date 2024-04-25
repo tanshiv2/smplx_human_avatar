@@ -11,6 +11,7 @@ model:
       distill: false
       res: 64
       z_ratio: 4
+      # or 56? 
       d_out: 55
       soft_blend: 20
       n_reg_pts: 1024
