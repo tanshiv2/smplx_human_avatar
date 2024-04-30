@@ -10,7 +10,6 @@ class GaussianConverter(nn.Module):
         super().__init__()
         self.cfg = cfg
         self.metadata = metadata
-
         self.pose_correction = get_pose_correction(cfg.model.pose_correction, metadata)
         self.deformer = get_deformer(cfg.model.deformer, metadata)
         self.texture = get_texture(cfg.model.texture, metadata)
@@ -40,9 +39,10 @@ class GaussianConverter(nn.Module):
     def forward(self, gaussians, camera, iteration, compute_loss=True):
         loss_reg = {}
         # loss_reg.update(gaussians.get_opacity_loss())
+        # make the body model parameters optimizable
         camera, loss_reg_pose = self.pose_correction(camera, iteration)
 
-        # pose augmentation
+        # pose augmentation, randomly add some noise to make model robust
         pose_noise = self.cfg.pipeline.get('pose_noise', 0.)
         if self.training and pose_noise > 0 and np.random.uniform() <= 0.5:
             camera = camera.copy()

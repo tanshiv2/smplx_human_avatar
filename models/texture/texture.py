@@ -71,7 +71,7 @@ class ColorMLP(ColorPrecompute):
         self.color_activation = nn.Sigmoid()
 
     def compose_input(self, gaussians, camera):
-        features = gaussians.get_features.squeeze(-1)
+        features = gaussians.get_features.squeeze(-1)  # [n_points, 32]
         n_points = features.shape[0]
         if self.use_xyz:
             aabb = self.metadata["aabb"]
@@ -86,11 +86,11 @@ class ColorMLP(ColorPrecompute):
             normal = torch.gather(rot, dim=2, index=scale.argmin(1).reshape(-1, 1, 1).expand(-1, 3, 1)).squeeze(-1)
             features = torch.cat([features, normal], dim=1)
         if self.sh_degree > 0:
-            dir_pp = (gaussians.get_xyz - camera.camera_center.repeat(n_points, 1))
+            dir_pp = (gaussians.get_xyz - camera.camera_center.repeat(n_points, 1))  # directions from camera center
             if self.cano_view_dir:
                 T_fwd = gaussians.fwd_transform
                 R_bwd = T_fwd[:, :3, :3].transpose(1, 2)
-                dir_pp = torch.matmul(R_bwd, dir_pp.unsqueeze(-1)).squeeze(-1)
+                dir_pp = torch.matmul(R_bwd, dir_pp.unsqueeze(-1)).squeeze(-1)  # directions in canonical view
                 view_noise_scale = self.cfg.get('view_noise', 0.)
                 if self.training and view_noise_scale > 0.:
                     view_noise = torch.tensor(augm_rots(view_noise_scale, view_noise_scale, view_noise_scale),
@@ -98,11 +98,11 @@ class ColorMLP(ColorPrecompute):
                                               device=dir_pp.device).transpose(0, 1)
                     dir_pp = torch.matmul(dir_pp, view_noise)
             dir_pp_normalized = dir_pp / (dir_pp.norm(dim=1, keepdim=True) + 1e-12)
-            dir_embed = self.sh_embed(dir_pp_normalized)
+            dir_embed = self.sh_embed(dir_pp_normalized)  # evaluate SH basis functions
             features = torch.cat([features, dir_embed], dim=1)
         if self.non_rigid_dim > 0:
             assert hasattr(gaussians, "non_rigid_feature")
-            features = torch.cat([features, gaussians.non_rigid_feature], dim=1)
+            features = torch.cat([features, gaussians.non_rigid_feature], dim=1)  # position-dependent features from non-rigid deformation
         if self.latent_dim > 0:
             frame_idx = camera.frame_id
             if frame_idx not in self.frame_dict:
@@ -119,7 +119,7 @@ class ColorMLP(ColorPrecompute):
 
     def forward(self, gaussians, camera):
         inp = self.compose_input(gaussians, camera)
-        output = self.mlp(inp)
+        output = self.mlp(inp)  # [n_points, 3 (RGB)]
         color = self.color_activation(output)
         return color
 
