@@ -235,7 +235,8 @@ def training(config):
 def validation(iteration, testing_iterations, testing_interval, scene : Scene, evaluator, renderArgs):
     # Report test and samples of training set
     if testing_interval > 0:
-        if not iteration % testing_interval == 0:
+        # to record the first iteration
+        if not iteration % testing_interval == 0 and iteration > 1:
             return
     else:
         if not iteration in testing_iterations:

@@ -317,9 +317,9 @@ class X_HumansDataset(Dataset):
             model_dict = np.load(model_file)
 
             if idx == 0:
-                # smpl_data['betas'] = self.betas
-                smpl_data['betas'] = model_dict['betas'].astype(np.float32) 
-
+                smpl_data['betas'] = model_dict['betas'][..., : 10].astype(np.float32) 
+            # batas change over time now
+            smpl_data['expression'].append(model_dict['betas'][..., 10:].astype(np.float32).squeeze(0))
 
 
             smpl_data['frames'].append(frame)
@@ -431,7 +431,7 @@ class X_HumansDataset(Dataset):
         # final bone transforms that transforms the canonical Vitruvian-pose mesh to the posed mesh
         # without global translation
         bone_transforms_02v = self.metadata['bone_transforms_02v']
-        bone_transforms = bone_transforms @ np.linalg.inv(bone_transforms_02v)
+        bone_transforms = bone_transforms #@ np.linalg.inv(bone_transforms_02v)
         bone_transforms = bone_transforms.astype(np.float32)
         bone_transforms[:, :3, 3] += trans.reshape(1, 3)  # add global offset
 
