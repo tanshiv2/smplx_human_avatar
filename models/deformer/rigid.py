@@ -27,7 +27,27 @@ class Identity(RigidDeform):
         super().__init__(cfg)
 
     def forward(self, gaussians, iteration, camera):
-        return gaussians
+        tfs = camera.bone_transforms
+        # global translation
+        trans = tfs[:, :3, 3].mean(0)        
+        
+
+        deformed_gaussians = gaussians.clone()
+        T_fwd = torch.eye(4, device=gaussians.get_xyz.device).unsqueeze(0).expand(gaussians.get_xyz.shape[0], -1, -1)
+        T_fwd = T_fwd.clone()
+        T_fwd[:, :3, 3] += + trans.reshape(1, 3)  # add global offset
+
+        xyz = gaussians.get_xyz
+        n_pts = xyz.shape[0]
+
+        # get forward transform by weight * bone_transforms for each Gaussian point
+        homo_coord = torch.ones(n_pts, 1, dtype=torch.float32, device=xyz.device)
+        x_hat_homo = torch.cat([xyz, homo_coord], dim=-1).view(n_pts, 4, 1)
+        x_bar = torch.matmul(T_fwd, x_hat_homo)[:, :3, 0]
+        deformed_gaussians._xyz = x_bar
+
+        deformed_gaussians.set_fwd_transform(T_fwd.detach())
+        return deformed_gaussians
 
     def regularization(self):
         return {}
@@ -187,6 +207,11 @@ class SkinningField(RigidDeform):
         super().__init__(cfg)
         self.smpl_verts = metadata["smpl_verts"]
         self.skinning_weights = metadata["skinning_weights"]
+        
+        self.smpl_verts_tensor = torch.from_numpy(metadata["smpl_verts"]).float().cuda()
+        self.skinning_weights_tensor = torch.from_numpy(metadata["skinning_weights"]).float().cuda()
+        
+        
         self.aabb = metadata["aabb"]
         # self.faces = np.load('body_models/misc/faces.npz')['faces']
         self.faces = metadata['faces']
@@ -215,7 +240,14 @@ class SkinningField(RigidDeform):
 
             self.lbs_voxel_final = lbs_voxel_final.permute(1, 0).reshape(1, 24, d, h, w)
 
-    def get_forward_transform(self, xyz, tfs):
+    def query_weights(self, xyz):
+        # find the nearest vertex
+        knn_ret = ops.knn_points(xyz.unsqueeze(0), self.smpl_verts_tensor.unsqueeze(0))
+        p_idx = knn_ret.idx.squeeze()
+        pts_W = self.skinning_weights_tensor[p_idx, :]
+        return pts_W
+    
+    def get_forward_transform(self, xyz, tfs, knn_weight = None):
         if self.distill:
             self.precompute(recompute_skinning=self.training)
             fwd_grid = torch.einsum("bcdhw,bcxy->bxydhw", self.lbs_voxel_final, tfs[None])
@@ -223,8 +255,13 @@ class SkinningField(RigidDeform):
             T_fwd = F.grid_sample(fwd_grid, xyz.reshape(1, 1, 1, -1, 3), padding_mode='border')
             T_fwd = T_fwd.reshape(4, 4, -1).permute(2, 0, 1)
         else:
-            pts_W = self.lbs_network(xyz)
-            pts_W = self.softmax(pts_W)
+            # try resiudal connection
+            # hardcode the lambda now, dont foget to change get skinning loss as well
+            if (knn_weight is not None):
+                pts_W = 0.8 * knn_weight + 0.2 * self.softmax(self.lbs_network(xyz))
+            else:
+                pts_W = self.lbs_network(xyz)
+                pts_W = self.softmax(pts_W)
             # import ipdb; ipdb.set_trace()
             T_fwd = torch.matmul(pts_W, tfs.view(-1, 16)).view(-1, 4, 4).float()
         return T_fwd
@@ -259,14 +296,16 @@ class SkinningField(RigidDeform):
 
     def get_skinning_loss(self):
         pts_skinning, sampled_weights = self.sample_skinning_loss()
+        knn_weight = self.query_weights(pts_skinning)
         pts_skinning = self.aabb.normalize(pts_skinning, sym=True)
 
         if self.distill:
             pred_weights = F.grid_sample(self.lbs_voxel_final, pts_skinning.reshape(1, 1, 1, -1, 3), padding_mode='border')
             pred_weights = pred_weights.reshape(24, -1).permute(1, 0)
         else:
-            pred_weights = self.lbs_network(pts_skinning)
-            pred_weights = self.softmax(pred_weights)
+            pred_weights = 0.8 * knn_weight + 0.2 * self.softmax(self.lbs_network(pts_skinning))
+            # pred_weights = self.lbs_network(pts_skinning)
+            # pred_weights = self.softmax(pred_weights)
         skinning_loss = torch.nn.functional.mse_loss(
             pred_weights, sampled_weights, reduction='none').sum(-1).mean()
         # breakpoint()
@@ -275,13 +314,27 @@ class SkinningField(RigidDeform):
 
 
     def forward(self, gaussians, iteration, camera):
+<<<<<<< HEAD
 
+=======
+        # need that to be correct!
+        # [joint_num, 4, 4]
+>>>>>>> e104c8d (Add identity rigid, modify some in pose_correction)
         tfs = camera.bone_transforms
-
+        # Gaussian position
         xyz = gaussians.get_xyz
         n_pts = xyz.shape[0]
+
+        # KNN
+        knn_weights = self.query_weights(xyz)
+
+        # normalizing position 
         xyz_norm = self.aabb.normalize(xyz, sym=True)
-        T_fwd = self.get_forward_transform(xyz_norm, tfs)
+        # get forward transform by weight * bone_transforms for each Gaussian point
+        # Joint number is 55 
+        # 3 -> 55 
+        # N*3 -> N*55 -> N*16
+        T_fwd = self.get_forward_transform(xyz_norm, tfs, knn_weights)
 
         deformed_gaussians = gaussians.clone()
         deformed_gaussians.set_fwd_transform(T_fwd.detach())
