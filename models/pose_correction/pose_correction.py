@@ -278,15 +278,16 @@ class DirectPoseOptimization(PoseCorrection):
 # here add pose_head?
 class DirectSmplxPoseOptimization(PoseCorrection):
     def __init__(self, config, metadata=None):
-        super(DirectPoseOptimization, self).__init__(config, metadata)
+        super(DirectSmplxPoseOptimization, self).__init__(config, metadata)
         self.cfg = config
 
         root_orient = metadata['root_orient']
-        # include pose_body + pose_head
         pose_body = metadata['pose_body']
-        pose_body = np.concatenate([pose_body, metadata['pose_jaw'], metadata['pose_eye']], axis=-1)
-        pose_hand = metadata['pose_hand']
 
+        if ('pose_jaw' in metadata.keys()):
+            pose_body = np.concatenate([pose_body, metadata['pose_jaw'], metadata['pose_eye']], axis=-1)
+        pose_hand = metadata['pose_hand']
+        expression = metadata['expression']
         trans = metadata['trans']
         betas = metadata['betas']
         frames = metadata['frames']
@@ -298,12 +299,17 @@ class DirectSmplxPoseOptimization(PoseCorrection):
         pose_body = np.array(pose_body)
         pose_hand = np.array(pose_hand)
         trans = np.array(trans)
+        expression = np.array(expression)
+
+        # import ipdb; ipdb.set_trace()
         self.root_orients = nn.Embedding.from_pretrained(torch.from_numpy(root_orient).float(), freeze=False)
         self.pose_bodys = nn.Embedding.from_pretrained(torch.from_numpy(pose_body).float(), freeze=False)
         self.pose_hands = nn.Embedding.from_pretrained(torch.from_numpy(pose_hand).float(), freeze=False)
         self.trans = nn.Embedding.from_pretrained(torch.from_numpy(trans).float(), freeze=False)
 
+        self.expression = nn.Embedding.from_pretrained(torch.from_numpy(expression).float(), freeze=False)
         self.register_parameter('betas', nn.Parameter(torch.tensor(betas, dtype=torch.float32)))
+    
 
     def pose_correct(self, camera, iteration):
         if iteration < self.cfg.get('delay', 0):
@@ -318,11 +324,12 @@ class DirectSmplxPoseOptimization(PoseCorrection):
         pose_hand = self.pose_hands(idx)
         trans = self.trans(idx)
 
+        expression = self.expression(idx)
         betas = self.betas
+        betas = torch.cat([betas, expression], dim=-1)
 
         # compose rots, Jtrs, bone_transforms, posed_smpl_verts
-        # rots, Jtrs, bone_transforms, posed_smpl_verts, _, _ = self.forward_smpl(betas, root_orient, pose_body, pose_hand, trans)
-        rots, Jtrs, bone_transforms, posed_smpl_verts, _, _ = self.forward_smplx(betas, root_orient, pose_body, pose_hand, trans)
+        rots, Jtrs, bone_transforms, posed_smpl_verts, _, _ = self.forward_smpl(betas, root_orient, pose_body, pose_hand, trans)
 
         rots_diff = camera.rots - rots
         updated_camera = camera.copy()

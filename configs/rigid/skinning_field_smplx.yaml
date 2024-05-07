@@ -18,8 +18,7 @@ model:
       skinning_network:
         otype: VanillaMLP
         n_neurons: 128
-        # n_hidden_layers: 4
-        n_hidden_layers: 6
+        n_hidden_layers: 4
         skip_in: []
         cond_in: []
         multires: 0
