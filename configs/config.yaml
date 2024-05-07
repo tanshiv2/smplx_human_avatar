@@ -60,7 +60,8 @@ opt:
   rotation_lr: 0.001
 
   pose_correction_lr: 1e-4
-  rigid_lr: 1e-4
+  # rigid_lr: 1e-4
+  rigid_lr: 1e-3
   non_rigid_lr: 1e-3
   lr_ratio: 0.01
 
@@ -96,7 +97,7 @@ pipeline:
 debug_from: -1
 detect_anomaly: false
 test_iterations: []
-test_interval: 2000
+test_interval: 100
 save_iterations: [30000]
 seed: -1
 checkpoint_iterations: []
