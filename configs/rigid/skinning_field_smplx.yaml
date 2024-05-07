@@ -11,7 +11,7 @@ model:
       distill: false
       res: 64
       z_ratio: 4
-      d_out: 55
+      d_out: 59
       soft_blend: 20
       n_reg_pts: 1024
       skinning_network:

@@ -39,6 +39,7 @@ class GaussianConverter(nn.Module):
     def forward(self, gaussians, camera, iteration, compute_loss=True):
         loss_reg = {}
         # loss_reg.update(gaussians.get_opacity_loss())
+        # make the body model parameters optimizable
         camera, loss_reg_pose = self.pose_correction(camera, iteration)
 
         # pose augmentation, randomly add some noise to make model robust

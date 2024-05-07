@@ -2,17 +2,17 @@ import math
 import numpy as np
 import torch
 from scipy.spatial.transform import Rotation
-from scene.gaussian_model import BasicPointCloud
 from plyfile import PlyData, PlyElement
 
 # add ZJUMoCAP dataloader
 def get_02v_bone_transforms(Jtr,):
+    # Jtr is the joint locations in the SMPL minimal A-pose
     rot45p = Rotation.from_euler('z', 45, degrees=True).as_matrix()
     rot45n = Rotation.from_euler('z', -45, degrees=True).as_matrix()
 
     # Specify the bone transformations that transform a SMPL A-pose mesh
     # to a star-shaped A-pose (i.e. Vitruvian A-pose)
-    bone_transforms_02v = np.tile(np.eye(4), (24, 1, 1))
+    bone_transforms_02v = np.tile(np.eye(4), (Jtr.shape[0], 1, 1))
 
     # First chain: L-hip (1), L-knee (4), L-ankle (7), L-foot (10)
     chain = [1, 4, 7, 10]
@@ -22,8 +22,8 @@ def get_02v_bone_transforms(Jtr,):
         t = Jtr[j_idx].copy()
         if i > 0:
             parent = chain[i-1]
-            t_p = Jtr[parent].copy()
-            t = np.dot(rot, t - t_p)
+            t_p = Jtr[parent].copy()  # parent joint location
+            t = np.dot(rot, t - t_p)  # relative joint location
             t += bone_transforms_02v[parent, :3, -1].copy()
 
         bone_transforms_02v[j_idx, :3, -1] = t
@@ -48,6 +48,7 @@ def get_02v_bone_transforms(Jtr,):
     return bone_transforms_02v
 
 def fetchPly(path):
+    from scene.gaussian_model import BasicPointCloud
     plydata = PlyData.read(path)
     vertices = plydata['vertex']
     positions = np.vstack([vertices['x'], vertices['y'], vertices['z']]).T
