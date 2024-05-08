@@ -321,12 +321,6 @@ class X_HumansDataset(Dataset):
         for idx, (frame, model_file) in enumerate(zip(self.frames, self.model_files_list)):
             model_dict = np.load(model_file)
 
-            if idx == 0:
-                smpl_data['betas'] = model_dict['betas'][..., : 10].astype(np.float32) 
-            # batas change over time now
-            smpl_data['expression'].append(model_dict['betas'][..., 10:].astype(np.float32).squeeze(0))
-
-
             smpl_data['frames'].append(frame)
             smpl_data['betas'].append(model_dict['betas'].astype(np.float32).reshape(-1))
             smpl_data['root_orient'].append(model_dict['global_orient'].astype(np.float32))
@@ -482,7 +476,10 @@ class X_HumansDataset(Dataset):
 
             pcd = fetchPly(ply_path)
         else:
-            ply_path = os.path.join(self.root_dir, self.split, self.subject, 'cano_smpl.ply')
+            if self.model_type == 'smpl':
+                ply_path = os.path.join(self.root_dir, 'cano_smpl.ply')
+            elif self.model_type == 'smplx':
+                ply_path = os.path.join(self.root_dir, 'cano_smplx.ply')
             try:
                 pcd = fetchPly(ply_path)
             except:
@@ -520,7 +517,4 @@ if __name__ == '__main__':
     cfg_dict['test_mode'] = 'view'
     cfg = OmegaConf.create(cfg_dict)
     dataset = X_HumansDataset(cfg)
-    import ipdb;
-
-    ipdb.set_trace()
     res = dataset[0]

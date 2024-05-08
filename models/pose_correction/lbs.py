@@ -78,7 +78,6 @@ def lbs(betas, pose, v_template, clothed_v_template, shapedirs, posedirs, J_regr
     device = betas.device
 
     # Add shape contribution
-    shapedirs = shapedirs[ ... ,  : betas.shape[1]]
     # batch size always 1?
     # betas = betas.view(1,-1)
     # import ipdb; ipdb.set_trace()
