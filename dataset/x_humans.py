@@ -517,7 +517,4 @@ if __name__ == '__main__':
     cfg_dict['test_mode'] = 'view'
     cfg = OmegaConf.create(cfg_dict)
     dataset = X_HumansDataset(cfg)
-    import ipdb;
-
-    ipdb.set_trace()
     res = dataset[0]
