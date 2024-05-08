@@ -187,10 +187,6 @@ class DirectPoseOptimization(PoseCorrection):
 
         root_orient = metadata['root_orient']
         pose_body = metadata['pose_body']
-
-        if ('pose_jaw' in metadata.keys()):
-            pose_body = np.concatenate([pose_body, metadata['pose_jaw'], metadata['pose_eye']], axis=-1)
-
         pose_hand = metadata['pose_hand']
         trans = metadata['trans']
         full_betas = metadata['betas']
@@ -270,107 +266,11 @@ class DirectPoseOptimization(PoseCorrection):
         pose_hand = self.pose_hands(idx)
         trans = self.trans(idx)
 
-        betas = self.betas
-
-        rots, Jtrs, bone_transforms, posed_smpl_verts, v_posed, Jtr_posed = self.forward_smpl(betas, root_orient, pose_body,
-                                                                                pose_hand, trans)
-        model_dict.update({
-            'minimal_shape': v_posed[0],
-            'betas': betas,
-            'Jtr_posed': Jtr_posed[0],
-            'bone_transforms': bone_transforms,
-            'trans': trans[0],
-            'root_orient': root_orient[0],
-            'pose_body': pose_body[0],
-            'pose_hand': pose_hand[0],
-        })
-        for k, v in model_dict.items():
-            model_dict.update({k: v.detach().cpu().numpy()})
-        return model_dict
-    
-# here add pose_head?
-class DirectSmplxPoseOptimization(PoseCorrection):
-    def __init__(self, config, metadata=None):
-        super(DirectSmplxPoseOptimization, self).__init__(config, metadata)
-        self.cfg = config
-
-        root_orient = metadata['root_orient']
-        pose_body = metadata['pose_body']
-
-        if ('pose_jaw' in metadata.keys()):
-            pose_body = np.concatenate([pose_body, metadata['pose_jaw'], metadata['pose_eye']], axis=-1)
-        pose_hand = metadata['pose_hand']
-        expression = metadata['expression']
-        trans = metadata['trans']
-        betas = metadata['betas']
-        frames = metadata['frames']
-
-        self.frames = frames
-
-        # use nn.Embedding
-        root_orient = np.array(root_orient)
-        pose_body = np.array(pose_body)
-        pose_hand = np.array(pose_hand)
-        trans = np.array(trans)
-        expression = np.array(expression)
-
-        # import ipdb; ipdb.set_trace()
-        self.root_orients = nn.Embedding.from_pretrained(torch.from_numpy(root_orient).float(), freeze=False)
-        self.pose_bodys = nn.Embedding.from_pretrained(torch.from_numpy(pose_body).float(), freeze=False)
-        self.pose_hands = nn.Embedding.from_pretrained(torch.from_numpy(pose_hand).float(), freeze=False)
-        self.trans = nn.Embedding.from_pretrained(torch.from_numpy(trans).float(), freeze=False)
-
-        self.expression = nn.Embedding.from_pretrained(torch.from_numpy(expression).float(), freeze=False)
-        self.register_parameter('betas', nn.Parameter(torch.tensor(betas, dtype=torch.float32)))
-    
-
-    def pose_correct(self, camera, iteration):
-        if iteration < self.cfg.get('delay', 0):
-            return camera, {}
-
-        frame = camera.frame_id
-
-        # use nn.Embedding
-        idx = torch.Tensor([self.frame_dict[frame]]).long().to(self.betas.device)
-        root_orient = self.root_orients(idx)
-        pose_body = self.pose_bodys(idx)
-        pose_hand = self.pose_hands(idx)
-        trans = self.trans(idx)
-
-        expression = self.expression(idx)
-        betas = self.betas
-        betas = torch.cat([betas, expression], dim=-1)
-
-        # compose rots, Jtrs, bone_transforms, posed_smpl_verts
-        rots, Jtrs, bone_transforms, posed_smpl_verts, _, _ = self.forward_smpl(betas, root_orient, pose_body, pose_hand, trans)
-
-        rots_diff = camera.rots - rots
-        updated_camera = camera.copy()
-        updated_camera.update(
-            rots=rots,
-            Jtrs=Jtrs,
-            bone_transforms=bone_transforms,
-        )
-
-        loss_pose = (rots_diff ** 2).mean()
-        return updated_camera, {
-            'pose': loss_pose,
-        }
-
-    def regularization(self, out):
-        loss = (out['rots_diff'] ** 2).mean()
-        return {'pose_reg': loss}
-
-    def export(self, frame):
-        model_dict = {}
-
-        idx = torch.Tensor([self.frame_dict[frame]]).long().to(self.betas.device)
-        root_orient = self.root_orients(idx)
-        pose_body = self.pose_bodys(idx)
-        pose_hand = self.pose_hands(idx)
-        trans = self.trans(idx)
-
-        betas = self.betas
+        if self.use_expression:
+            expression = self.expression(idx)
+            betas = torch.cat([self.betas, expression], dim=-1)
+        else:
+            betas = self.betas
 
         rots, Jtrs, bone_transforms, posed_smpl_verts, v_posed, Jtr_posed = self.forward_smpl(betas, root_orient, pose_body,
                                                                                 pose_hand, trans)
