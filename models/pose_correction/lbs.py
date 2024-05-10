@@ -78,7 +78,6 @@ def lbs(betas, pose, v_template, clothed_v_template, shapedirs, posedirs, J_regr
     device = betas.device
 
     # Add shape contribution
-    shapedirs = shapedirs[ ... ,  : betas.shape[1]]
     # batch size always 1?
     # betas = betas.view(1,-1)
     # import ipdb; ipdb.set_trace()
@@ -99,7 +98,7 @@ def lbs(betas, pose, v_template, clothed_v_template, shapedirs, posedirs, J_regr
         pose_feature = (rot_mats[:, 1:, :, :] - ident).view([batch_size, -1])
 
         # (N x P) x (P, V * 3) -> N x V x 3
-        import ipdb; ipdb.set_trace()
+        # import ipdb; ipdb.set_trace()
         pose_offsets = torch.matmul(pose_feature, posedirs).view(batch_size, -1, 3)
         v_posed = pose_offsets + v_shaped
     else:

@@ -2,11 +2,11 @@ import math
 import numpy as np
 import torch
 from scipy.spatial.transform import Rotation
-from scene.gaussian_model import BasicPointCloud
 from plyfile import PlyData, PlyElement
 
 # add ZJUMoCAP dataloader
 def get_02v_bone_transforms(Jtr,):
+    # Jtr is the joint locations in the SMPL minimal A-pose
     rot45p = Rotation.from_euler('z', 45, degrees=True).as_matrix()
     rot45n = Rotation.from_euler('z', -45, degrees=True).as_matrix()
 
@@ -22,8 +22,8 @@ def get_02v_bone_transforms(Jtr,):
         t = Jtr[j_idx].copy()
         if i > 0:
             parent = chain[i-1]
-            t_p = Jtr[parent].copy()
-            t = np.dot(rot, t - t_p)
+            t_p = Jtr[parent].copy()  # parent joint location
+            t = np.dot(rot, t - t_p)  # relative joint location
             t += bone_transforms_02v[parent, :3, -1].copy()
 
         bone_transforms_02v[j_idx, :3, -1] = t
@@ -48,6 +48,7 @@ def get_02v_bone_transforms(Jtr,):
     return bone_transforms_02v
 
 def fetchPly(path):
+    from scene.gaussian_model import BasicPointCloud
     plydata = PlyData.read(path)
     vertices = plydata['vertex']
     positions = np.vstack([vertices['x'], vertices['y'], vertices['z']]).T

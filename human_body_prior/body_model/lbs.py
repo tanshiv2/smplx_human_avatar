@@ -233,14 +233,15 @@ def batch_rigid_transform(rot_mats, joints, parents, dtype=torch.float32):
     num_joints = joints.shape[1]
     device = rot_mats.device
 
-    joints = torch.unsqueeze(joints, dim=-1)
+    joints = torch.unsqueeze(joints, dim=-1)  # joints are positions w.r.t. the world (not posed)
 
     rel_joints = joints.clone()
-    rel_joints[:, 1:] -= joints[:, parents[1:]]
+    rel_joints[:, 1:] -= joints[:, parents[1:]]  # rel_joints are positions w.r.t. the parent joint
 
     transforms_mat = transform_mat(
         rot_mats.view(-1, 3, 3),
         rel_joints.reshape(-1, 3, 1)).view(-1, joints.shape[1], 4, 4)
+    # transforms_mat is the transformation matrix for each joint w.r.t. the parent joint
 
     transform_chain = [transforms_mat[:, 0]]
     for i in range(1, parents.shape[0]):
@@ -251,13 +252,20 @@ def batch_rigid_transform(rot_mats, joints, parents, dtype=torch.float32):
         transform_chain.append(curr_res)
 
     transforms = torch.stack(transform_chain, dim=1)
+    # transforms is the transformation matrix for each joint w.r.t. the world
 
-    # The last column of the transformations contains the posed joints
+    # The last column of the transformations contains the posed joints in world coordinates
     posed_joints = transforms[:, :, :3, 3]
 
     joints_homogen = torch.cat([joints, torch.zeros([batch_size, num_joints, 1, 1], dtype=dtype, device=device)],dim=2)
+    # (B, J, 4, 1)
+
     init_bone = torch.matmul(transforms, joints_homogen)
+    # (B, J, 4, 4) x (B, J, 4, 1) -> (B, J, 4, 1)
+
     init_bone = F.pad(init_bone, [3, 0, 0, 0, 0, 0, 0, 0])
+    # (B, J, 4, 1) -> (B, J, 4, 4)
+
     rel_transforms = transforms - init_bone
 
     return posed_joints, rel_transforms, transforms

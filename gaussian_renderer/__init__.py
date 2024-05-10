@@ -93,20 +93,20 @@ def render(data,
             means3D=means3D,
             means2D=means2D,
             shs=None,
-            colors_precomp=torch.ones(opacity.shape[0], 3, device=opacity.device),
+            colors_precomp=torch.ones(opacity.shape[0], 3, device=opacity.device), # Here colors are used as opacities
             opacities=opacity,
             scales=scales,
             rotations=rotations,
             cov3D_precomp=cov3D_precomp)
-        opacity_image = opacity_image[:1]
+        opacity_image = opacity_image[:1]  # Only the first channel is needed
 
 
     # Those Gaussians that were frustum culled or had a radius of 0 were not visible.
     # They will be excluded from value updates used in the splitting criteria.
-    return {"deformed_gaussian": pc,
-            "render": rendered_image,
+    return {"deformed_gaussian": pc, # Deformed Gaussians object
+            "render": rendered_image, # Rendered image: (3, H, W)
             "viewspace_points": screenspace_points,
-            "visibility_filter" : radii > 0,
+            "visibility_filter" : radii > 0, # If radius is 0, the Gaussian was not visible.
             "radii": radii,
             "loss_reg": loss_reg,
             "opacity_render": opacity_image,

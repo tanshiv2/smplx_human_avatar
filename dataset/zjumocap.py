@@ -264,10 +264,8 @@ class ZJUMoCapDataset(Dataset):
         for idx, (frame, model_file) in enumerate(zip(self.frames, self.model_files_list)):
             model_dict = np.load(model_file)
 
-            if idx == 0:
-                smpl_data['betas'] = model_dict['betas'].astype(np.float32)
-
             smpl_data['frames'].append(frame)
+            smpl_data['betas'].append(model_dict['betas'].astype(np.float32).reshape(-1))
             smpl_data['root_orient'].append(model_dict['root_orient'].astype(np.float32))
             smpl_data['pose_body'].append(model_dict['pose_body'].astype(np.float32))
             smpl_data['pose_hand'].append(model_dict['pose_hand'].astype(np.float32))

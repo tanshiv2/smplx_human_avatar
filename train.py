@@ -30,6 +30,7 @@ import lpips
 
 def C(iteration, value):
     if isinstance(value, int) or isinstance(value, float):
+        # if value is a scalar, return itself
         pass
     else:
         value = OmegaConf.to_container(value)
@@ -107,6 +108,8 @@ def training(config):
         render_pkg = render(data, iteration, scene, pipe, background, compute_loss=True, return_opacity=use_mask)
 
         image, viewspace_point_tensor, visibility_filter, radii = render_pkg["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
+
+
         opacity = render_pkg["opacity_render"] if use_mask else None
 
         # Loss
@@ -119,8 +122,11 @@ def training(config):
         if lambda_l1 > 0.:
             loss_l1 = l1_loss(image, gt_image)
         if lambda_dssim > 0.:
-            loss_dssim = 1.0 - ssim(image, gt_image)
+            loss_dssim = 1.0 - ssim(image, gt_image)  # ssim is a similarity metric, so we subtract it from 1 to get a loss
+
+        # Here we can ignore the loss_dssim, since lambda_dssim is set to 0
         loss = lambda_l1 * loss_l1 + lambda_dssim * loss_dssim
+
 
         # perceptual loss
         lambda_perceptual = C(iteration, config.opt.get('lambda_perceptual', 0.))
@@ -130,9 +136,13 @@ def training(config):
             mask = np.where(mask)
             y1, y2 = mask[1].min(), mask[1].max() + 1
             x1, x2 = mask[2].min(), mask[2].max() + 1
+
+            # crop the image using the bounding box
             fg_image = image[:, y1:y2, x1:x2]
             gt_fg_image = gt_image[:, y1:y2, x1:x2]
 
+            # Perceptual loss, which is the difference between the two images as perceived by the human visual system,
+            # is calculated using a pre-trained VGG network.
             loss_perceptual = loss_fn_vgg(fg_image, gt_fg_image, normalize=True).mean()
             loss += lambda_perceptual * loss_perceptual
         else:
@@ -154,7 +164,7 @@ def training(config):
         # skinning loss
         lambda_skinning = C(iteration, config.opt.lambda_skinning)
         if lambda_skinning > 0:
-            loss_skinning = scene.get_skinning_loss()
+            loss_skinning = scene.get_skinning_loss()  # Todo: Needed to inspect the skinning loss
             loss += lambda_skinning * loss_skinning
         else:
             loss_skinning = torch.tensor(0.).cuda()
@@ -162,6 +172,10 @@ def training(config):
         lambda_aiap_xyz = C(iteration, config.opt.get('lambda_aiap_xyz', 0.))
         lambda_aiap_cov = C(iteration, config.opt.get('lambda_aiap_cov', 0.))
         if lambda_aiap_xyz > 0. or lambda_aiap_cov > 0.:
+            # As-Isometric-As-Possible loss
+            # Refer to the 3DGS paper
+            # For each 3D Gaussian, we want to make sure the differences with neighbors in the deformed space
+            # is as close as possible to the differences in the original space.
             loss_aiap_xyz, loss_aiap_cov = full_aiap_loss(scene.gaussians, render_pkg["deformed_gaussian"])
         else:
             loss_aiap_xyz = torch.tensor(0.).cuda()
@@ -235,7 +249,8 @@ def training(config):
 def validation(iteration, testing_iterations, testing_interval, scene : Scene, evaluator, renderArgs):
     # Report test and samples of training set
     if testing_interval > 0:
-        if not iteration % testing_interval == 0:
+        # to record the first iteration
+        if not iteration % testing_interval == 0 and iteration > 1:
             return
     else:
         if not iteration in testing_iterations:

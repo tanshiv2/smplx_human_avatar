@@ -9,17 +9,17 @@ from utils.dataset_utils import get_02v_bone_transforms, fetchPly, storePly, AAB
 from scene.cameras import Camera
 from utils.camera_utils import freeview_camera
 
-
 import torch
 from torch.utils.data import Dataset
 from scipy.spatial.transform import Rotation
 import trimesh
 
+
 class X_HumansDataset(Dataset):
     def __init__(self, cfg, split='train'):
         super().__init__()
         self.cfg = cfg
-        
+
         # change in conf
         # ../../data/00036/train/
         self.root_dir = cfg.root_dir
@@ -35,12 +35,12 @@ class X_HumansDataset(Dataset):
 
         # keep the same?
         self.train_frames = cfg.train_frames
-        # need to 
+        # need to
         # self.train_cams = cfg.train_views
         self.val_frames = cfg.val_frames
         # self.val_cams = cfg.val_views
         self.white_bg = cfg.white_background
-        self.H, self.W = 1024, 1024 # hardcoded original size
+        self.H, self.W = 1024, 1024  # hardcoded original size
         self.h, self.w = cfg.img_hw
 
         self.model_type = cfg.model_type
@@ -55,10 +55,11 @@ class X_HumansDataset(Dataset):
             self.skinning_weights = dict(np.load('body_models/misc/skinning_weights_all.npz'))
             self.posedirs = dict(np.load('body_models/misc/posedirs_all.npz'))
             self.J_regressor = dict(np.load('body_models/misc/J_regressors.npz'))
-            self.betas = np.load(os.path.join(self.root_dir, "mean_shape_smpl.npy"))
 
             self.v_templates = np.load('body_models/misc/v_templates.npz')
-            self.shapedirs = np.load('body_models/misc/shapedirs_all.npz')
+            self.shapedirs = dict(np.load('body_models/misc/shapedirs_all.npz'))
+            for k in list(self.shapedirs.keys()):
+                self.shapedirs[k] = self.shapedirs[k][:, :, :10]
             self.kintree_table = np.load('body_models/misc/kintree_table.npy')
 
         elif self.model_type == 'smplx':
@@ -70,7 +71,9 @@ class X_HumansDataset(Dataset):
             # self.betas = np.load(os.path.join(self.root_dir, "mean_shape_smplx.npy"))[None, :]
 
             self.v_templates = np.load('body_models/misc/v_templates_smplx.npz')
-            self.shapedirs = np.load('body_models/misc/shapedirs_all_smplx.npz')
+            self.shapedirs = dict(np.load('body_models/misc/shapedirs_all_smplx.npz'))
+            for k in list(self.shapedirs.keys()):
+                self.shapedirs[k] = self.shapedirs[k][:, :, :20]
             self.kintree_table = np.load('body_models/misc/kintree_table_smplx.npy')
 
         with open(os.path.join(self.root_dir, "gender.txt")) as f:
@@ -92,7 +95,8 @@ class X_HumansDataset(Dataset):
 
         # need camera here
         # ../../data/00036/train/Take1/render/cameras.npz
-        self.cameras = np.load(os.path.join(self.root_dir, self.split, self.subject, 'render/cameras.npz'), allow_pickle=True)
+        self.cameras = np.load(os.path.join(self.root_dir, self.split, self.subject, 'render/cameras.npz'),
+                               allow_pickle=True)
         self.cameras = [{'K': self.cameras['intrinsic'],
                          'R': self.cameras['extrinsic'][k, :3, :3],
                          'T': self.cameras['extrinsic'][k, :3, 3]} for k in range(frames[0], frames[1], frames[2])]
@@ -105,19 +109,15 @@ class X_HumansDataset(Dataset):
         # that dict stored in self.cameras
 
         # X-humans has train/Take1 as one scene, has ../../data/00036/train/Take1/render/cameras.npz for this view
-        # camearas.npz has key 'intrinsic' and 'extrinsic', which are 3*3 matrix and n*4*4 matrix 
-        # ../../data/00036/train/Take1/render/image/color_000001.png has its own extrinsic camera setting and huamn pose. 
-
+        # camearas.npz has key 'intrinsic' and 'extrinsic', which are 3*3 matrix and n*4*4 matrix
+        # ../../data/00036/train/Take1/render/image/color_000001.png has its own extrinsic camera setting and huamn pose.
 
         # data
-
-
 
         # if len(cam_names) == 0:
         #     cam_names = self.cameras['all_cam_names']
         # elif self.refine:
         #     cam_names = [f'{int(cam_name) - 1:02d}' for cam_name in cam_names]
-
 
         start_frame, end_frame, sampling_rate = frames
 
@@ -139,9 +139,11 @@ class X_HumansDataset(Dataset):
             # frames = frames[frame_slice]
         else:
             if self.model_type == 'smpl':
-                model_files = sorted(glob.glob(os.path.join(self.root_dir, self.split, self.subject, 'SMPL_processed/*.npz')))
-            else:
-                model_files = sorted(glob.glob(os.path.join(self.root_dir, self.split, self.subject, 'SMPLX_processed/*.npz')))
+                model_files = sorted(
+                    glob.glob(os.path.join(self.root_dir, self.split, self.subject, 'SMPL_processed/*.npz')))
+            elif self.model_type == 'smplx':
+                model_files = sorted(
+                    glob.glob(os.path.join(self.root_dir, self.split, self.subject, 'SMPLX_processed/*.npz')))
             # something as [000000.npz, 000001.npz,...,]
             frames = list(range(len(model_files)))
             # here config end_frame as files number
@@ -187,8 +189,10 @@ class X_HumansDataset(Dataset):
         else:
             # loop over images
             # Only one camera with changing extrinsic parameters
-            img_files = sorted(glob.glob(os.path.join(self.root_dir, self.split, self.subject, "render/image/*.png")))[frame_slice]
-            mask_files = sorted(glob.glob(os.path.join(self.root_dir,self.split, self.subject, "render/depth/*.tiff")))[frame_slice]
+            img_files = sorted(glob.glob(os.path.join(self.root_dir, self.split, self.subject, "render/image/*.png")))[
+                frame_slice]
+            mask_files = \
+            sorted(glob.glob(os.path.join(self.root_dir, self.split, self.subject, "render/depth/*.tiff")))[frame_slice]
             for d_idx, f_idx in enumerate(frames):
                 img_file = img_files[d_idx]
                 mask_file = mask_files[d_idx]
@@ -238,7 +242,8 @@ class X_HumansDataset(Dataset):
             'faces': self.faces,
             'posedirs': self.posedirs,
             'J_regressor': self.J_regressor,
-            'cameras_extent': 3.469298553466797, # hardcoded, used to scale the threshold for scaling/image-space gradient
+            'cameras_extent': 3.469298553466797,
+            # hardcoded, used to scale the threshold for scaling/image-space gradient
             'frame_dict': frame_dict,
             'v_templates': self.v_templates,
             'shapedirs': self.shapedirs,
@@ -275,7 +280,7 @@ class X_HumansDataset(Dataset):
         skinning_weights = self.skinning_weights[gender]
         # Get bone transformations that transform a SMPL A-pose mesh
         # to a star-shaped A-pose (i.e. Vitruvian A-pose)
-        
+
         bone_transforms_02v = get_02v_bone_transforms(Jtr)
         # bone_transforms_02v = np.stack([np.eye(4) for _ in range(len(Jtr))]) 
         # bone transform here is 24, wrong, need to be 55
@@ -335,25 +340,21 @@ class X_HumansDataset(Dataset):
         for idx, (frame, model_file) in enumerate(zip(self.frames, self.model_files_list)):
             model_dict = np.load(model_file)
 
-            if idx == 0:
-                # smpl_data['betas'] = self.betas
-                smpl_data['betas'] = model_dict['betas'].astype(np.float32) 
-
-
-
             smpl_data['frames'].append(frame)
+            smpl_data['betas'].append(model_dict['betas'].astype(np.float32).reshape(-1))
             smpl_data['root_orient'].append(model_dict['global_orient'].astype(np.float32))
             smpl_data['trans'].append(model_dict['transl'].astype(np.float32))
-            smpl_data['pose_body'].append(model_dict['body_pose'][:63].astype(np.float32))
 
             if self.model_type == 'smpl':
+                smpl_data['pose_body'].append(model_dict['body_pose'][:63].astype(np.float32))
                 smpl_data['pose_hand'].append(model_dict['body_pose'][63:].astype(np.float32))
-            else:
-                smpl_data['pose_hand'].append(np.concatenate([model_dict['left_hand_pose'], model_dict['right_hand_pose']]).astype(np.float32))
-                smpl_data['pose_eye'].append(np.concatenate([model_dict['leye_pose'], model_dict['reye_pose']]).astype(np.float32))
-                smpl_data['pose_jaw'].append(model_dict['jaw_pose'].astype(np.float32))
-                # expression forget to save in preprocess
-                # smpl_data['expression'].append(model_dict['expression'].astype(np.float32))
+            elif self.model_type == 'smplx':
+                smpl_data['pose_hand'].append(
+                    np.concatenate([model_dict['left_hand_pose'], model_dict['right_hand_pose']]).astype(np.float32))
+                smpl_data['pose_body'].append(
+                    np.concatenate([model_dict['body_pose'], model_dict['jaw_pose'], model_dict['leye_pose'],
+                                    model_dict['reye_pose']]).astype(np.float32)
+                )
 
         return smpl_data
 
@@ -376,7 +377,7 @@ class X_HumansDataset(Dataset):
         # Todo: Check correctness by projecting
         R = np.transpose(R)
 
-        image = cv2.cvtColor(cv2.imread(img_file), cv2.COLOR_BGR2RGB)
+        image = cv2.imread(img_file)
         mask = cv2.imread(mask_file, cv2.IMREAD_UNCHANGED)
         # Todo: How is mask used here?
 
@@ -450,7 +451,7 @@ class X_HumansDataset(Dataset):
         # final bone transforms that transforms the canonical Vitruvian-pose mesh to the posed mesh
         # without global translation
         bone_transforms_02v = self.metadata['bone_transforms_02v']
-        bone_transforms = bone_transforms @ np.linalg.inv(bone_transforms_02v)
+        bone_transforms = bone_transforms #@ np.linalg.inv(bone_transforms_02v)
         bone_transforms = bone_transforms.astype(np.float32)
         bone_transforms[:, :3, 3] += trans.reshape(1, 3)  # add global offset
 
@@ -478,7 +479,7 @@ class X_HumansDataset(Dataset):
 
     # important, used for initialization
     # maybe can directly use those files: data/00036/train/Take1/SMPLX/mesh-f00001_smplx.ply
-    def readPointCloud(self,):
+    def readPointCloud(self, ):
         if self.cfg.get('random_init', False):
             ply_path = os.path.join(self.root_dir, self.subject, 'random_pc.ply')
 
@@ -495,9 +496,9 @@ class X_HumansDataset(Dataset):
             pcd = fetchPly(ply_path)
         else:
             if self.model_type == 'smpl':
-                ply_path = os.path.join(self.root_dir, self.split, self.subject, 'SMPL', 'mesh-f00001_smpl.ply')
-            else:
-                ply_path = os.path.join(self.root_dir, self.split, self.subject, 'SMPLX', 'mesh-f00001_smplx.ply')
+                ply_path = os.path.join(self.root_dir, 'cano_smpl.ply')
+            elif self.model_type == 'smplx':
+                ply_path = os.path.join(self.root_dir, 'cano_smplx.ply')
             try:
                 pcd = fetchPly(ply_path)
             except:
@@ -514,8 +515,10 @@ class X_HumansDataset(Dataset):
 
         return pcd
 
+
 if __name__ == '__main__':
     from omegaconf import OmegaConf
+
     cfg_dict = {}
     cfg_dict['root_dir'] = '../../data/X_Humans/00036/'
     cfg_dict['split'] = 'train'
@@ -529,10 +532,8 @@ if __name__ == '__main__':
     cfg_dict['train_smpl'] = False
     cfg_dict['padding'] = 0.1
     cfg_dict['data_device'] = 'cuda'
-    cfg_dict['preload'] = True
+    cfg_dict['preload'] = False
     cfg_dict['test_mode'] = 'view'
     cfg = OmegaConf.create(cfg_dict)
     dataset = X_HumansDataset(cfg)
-    import ipdb; ipdb.set_trace()
     res = dataset[0]
-

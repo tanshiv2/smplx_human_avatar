@@ -21,4 +21,3 @@ if __name__ == '__main__':
     np.savez('body_models/misc/skinning_weights_all_smplx.npz', male=data_m['weights'], female=data_f['weights'], neutral=data_n['weights'])
     np.savez('body_models/misc/v_templates_smplx.npz', male=data_m['v_template'], female=data_f['v_template'], neutral=data_n['v_template'])
     np.save('body_models/misc/kintree_table_smplx.npy', data_m['kintree_table'].astype(np.int32))
-
