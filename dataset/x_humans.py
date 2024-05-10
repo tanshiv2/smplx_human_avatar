@@ -291,6 +291,23 @@ class X_HumansDataset(Dataset):
         coord_min -= padding
 
         cano_mesh = trimesh.Trimesh(vertices=vertices.astype(np.float32), faces=self.faces)
+
+        # derive a sub-mesh of hands
+
+        left_wrist_idx = 20
+        right_wrist_idx = 21
+        finger_start_idx = 25
+        finger_end_idx = 54
+        weights_tensor = torch.tensor(skinning_weights).cpu()
+        faces_tensor = torch.tensor(self.faces).cpu()
+        max_joint_indices = torch.argmax(weights_tensor, dim=1)       #corresponding joint index for each vertex
+        hand_vertices_idx = torch.nonzero((max_joint_indices >= finger_start_idx) & (max_joint_indices <= finger_end_idx) | (max_joint_indices == left_wrist_idx) | (max_joint_indices == right_wrist_idx)).squeeze()
+        vertex_matches = torch.eq(faces_tensor.unsqueeze(2), hand_vertices_idx.view(1, 1, -1))
+        num_matches_per_vertex = torch.sum(vertex_matches, dim=2)
+        num_occurrences_per_row = torch.sum(num_matches_per_vertex, dim=1)
+        hand_meshes_idx = torch.nonzero(num_occurrences_per_row >= 3).squeeze() #faces containing hand vertices
+        cano_hand_mesh = trimesh.Trimesh(vertices=vertices.astype(np.float32), faces=self.faces[hand_meshes_idx])
+
         return {
             'gender': gender,
             'smpl_verts': vertices.astype(np.float32),
@@ -303,6 +320,8 @@ class X_HumansDataset(Dataset):
             'coord_min': coord_min,
             'coord_max': coord_max,
             'aabb': AABB(coord_max, coord_min),
+            'cano_hand_mesh': cano_hand_mesh,
+            'hand_meshes_idx': hand_meshes_idx,
         }
 
     def get_smpl_data(self):

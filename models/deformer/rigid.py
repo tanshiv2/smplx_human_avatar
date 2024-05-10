@@ -138,6 +138,7 @@ class SkinningField(RigidDeform):
         # self.faces = np.load('body_models/misc/faces.npz')['faces']
         self.faces = metadata['faces']
         self.cano_mesh = metadata["cano_mesh"]
+        self.cano_hand_mesh = metadata["cano_hand_mesh"]
         
         self.distill = cfg.distill
         d, h, w = cfg.res // cfg.z_ratio, cfg.res, cfg.res
@@ -148,6 +149,7 @@ class SkinningField(RigidDeform):
 
         self.lbs_network = get_skinning_mlp(3, cfg.d_out, cfg.skinning_network)
         # need to further check d_out is the num_joint?
+        # - theoretically yes, lbs_network input: sampled cano points, output: weights for each joint
         self.d_out = cfg.d_out
 
 
@@ -170,6 +172,7 @@ class SkinningField(RigidDeform):
             T_fwd = F.grid_sample(fwd_grid, xyz.reshape(1, 1, 1, -1, 3), padding_mode='border')
             T_fwd = T_fwd.reshape(4, 4, -1).permute(2, 0, 1)
         else:
+            # the predicted weights are of size (n_vertices, 55)
             pts_W = self.lbs_network(xyz)
             pts_W = self.softmax(pts_W)
             # import ipdb; ipdb.set_trace()
@@ -187,9 +190,26 @@ class SkinningField(RigidDeform):
         )
         vert_ids = self.faces[face_idx, ...]
         pts_W = (self.skinning_weights[vert_ids] * bary_coords[..., None]).sum(axis=1)
+        # adding samples for hand
+        points_skinning_hand, face_idx_hand = self.cano_hand_mesh.sample(self.cfg.n_reg_pts, return_index=True)
+        points_skinning_hand = points_skinning_hand.view(np.ndarray).astype(np.float32)
+        faces_hand = self.cano_hand_mesh.faces
+        bary_coords_hand = igl.barycentric_coordinates_tri(
+            points_skinning_hand,
+            self.smpl_verts[faces_hand[face_idx_hand, 0], :],
+            self.smpl_verts[faces_hand[face_idx_hand, 1], :],
+            self.smpl_verts[faces_hand[face_idx_hand, 2], :],
+        )
+        vert_ids_hand = faces_hand[face_idx_hand, ...]
+        pts_W_hand = (self.skinning_weights[vert_ids_hand] * bary_coords_hand[..., None]).sum(axis=1)
+        points_skinning_hand = torch.from_numpy(points_skinning_hand).cuda()
+        pts_W_hand = torch.from_numpy(pts_W_hand).cuda()
 
         points_skinning = torch.from_numpy(points_skinning).cuda()
         pts_W = torch.from_numpy(pts_W).cuda()
+
+
+
         return points_skinning, pts_W
 
     def softmax(self, logit):
@@ -206,6 +226,7 @@ class SkinningField(RigidDeform):
 
     def get_skinning_loss(self):
         pts_skinning, sampled_weights = self.sample_skinning_loss()
+        self.points_skinning = pts_skinning
         pts_skinning = self.aabb.normalize(pts_skinning, sym=True)
 
         if self.distill:
@@ -214,6 +235,7 @@ class SkinningField(RigidDeform):
         else:
             pred_weights = self.lbs_network(pts_skinning)
             pred_weights = self.softmax(pred_weights)
+            #self.pred_weights = pred_weights
         skinning_loss = torch.nn.functional.mse_loss(
             pred_weights, sampled_weights, reduction='none').sum(-1).mean()
         # breakpoint()
