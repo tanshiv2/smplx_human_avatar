@@ -29,15 +29,17 @@ class X_HumansDataset(Dataset):
             self.subject = cfg.get('train_subject', 'Take1')
         else:
             # val test predict all group to test
+            # change here
+            # split = "train"
             split = "test"
             self.subject = cfg.get('test_subject', 'Take8')
         self.split = split
 
         # keep the same?
-        self.train_frames = cfg.train_frames
+        # self.train_frames = cfg.train_frames
         # need to
         # self.train_cams = cfg.train_views
-        self.val_frames = cfg.val_frames
+        # self.val_frames = cfg.val_frames
         # self.val_cams = cfg.val_views
         self.white_bg = cfg.white_background
         self.H, self.W = 1024, 1024  # hardcoded original size
@@ -213,11 +215,11 @@ class X_HumansDataset(Dataset):
                         'model_file': model_file
                     })
 
-            self.frames = frames
+        self.frames = frames
             # import ipdb; ipdb.set_trace()
-            self.get_metadata()
+        self.get_metadata()
 
-            self.preload = cfg.get('preload', True)
+        self.preload = cfg.get('preload', True)
         if self.preload:
             self.cameras = [self.getitem(idx) for idx in range(len(self))]
 
@@ -233,7 +235,7 @@ class X_HumansDataset(Dataset):
             self.metadata = cano_data
             return
 
-        start, end, step = self.train_frames
+        start, end, step = 0, len(data_paths), 1
         frames = list(range(len(data_paths)))
         if end == 0:
             end = len(frames)
@@ -258,6 +260,7 @@ class X_HumansDataset(Dataset):
         self.metadata.update(cano_data)
         if self.cfg.train_smpl:
             self.metadata.update(self.get_smpl_data())
+        
 
     def get_cano_smpl_verts(self, data_path):
         '''
@@ -372,7 +375,8 @@ class X_HumansDataset(Dataset):
         # Todo: Check correctness by projecting
         R = np.transpose(R)
 
-        image = cv2.imread(img_file)
+        # image = cv2.imread(img_file)
+        image = cv2.cvtColor(cv2.imread(img_file), cv2.COLOR_BGR2RGB)
         mask = cv2.imread(mask_file, cv2.IMREAD_UNCHANGED)
         # Todo: How is mask used here?
 
@@ -490,7 +494,7 @@ class X_HumansDataset(Dataset):
 
             pcd = fetchPly(ply_path)
         else:
-            ply_path = os.path.join(self.root_dir, self.split, self.subject, 'cano_smpl.ply')
+            ply_path = os.path.join(self.root_dir, self.split, self.subject[0], 'cano_smpl.ply')
             try:
                 pcd = fetchPly(ply_path)
             except:
@@ -504,6 +508,7 @@ class X_HumansDataset(Dataset):
                 storePly(ply_path, xyz, rgb)
 
                 pcd = fetchPly(ply_path)
+        import ipdb; ipdb.set_trace()
 
         return pcd
 
@@ -514,9 +519,9 @@ if __name__ == '__main__':
     cfg_dict = {}
     cfg_dict['root_dir'] = '../../data/X_Humans/00036/'
     cfg_dict['split'] = 'train'
-    cfg_dict['subject'] = 'Take1'
-    cfg_dict['train_frames'] = [0, 100, 1]
-    cfg_dict['val_frames'] = [100, 110, 1]
+    # cfg_dict['subject'] = 'Take1'
+    # cfg_dict['train_frames'] = [0, 100, 1]
+    # cfg_dict['val_frames'] = [100, 110, 1]
     cfg_dict['white_background'] = False
     cfg_dict['img_hw'] = (1200, 800)
     cfg_dict['model_type'] = 'smplx'
