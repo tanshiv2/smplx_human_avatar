@@ -358,7 +358,8 @@ class X_HumansDataset(Dataset):
         # Todo: Check correctness by projecting
         R = np.transpose(R)
 
-        image = cv2.imread(img_file)
+        # image = cv2.imread(img_file)
+        image = cv2.cvtColor(cv2.imread(img_file), cv2.COLOR_BGR2RGB)
         mask = cv2.imread(mask_file, cv2.IMREAD_UNCHANGED)
         # Todo: How is mask used here?
 
