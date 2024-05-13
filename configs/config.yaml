@@ -98,9 +98,9 @@ debug_from: -1
 detect_anomaly: false
 test_iterations: []
 test_interval: 1000
-save_iterations: [30000]
+save_iterations: [10000]
 seed: -1
-checkpoint_iterations: []
+checkpoint_iterations: [10000]
 start_checkpoint: null
 wandb_disable: false
 
