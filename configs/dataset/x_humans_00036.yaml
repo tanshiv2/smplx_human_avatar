@@ -1,0 +1,72 @@
+# @package _global_
+dataset:
+  data_device: cuda
+  eval: false
+  img_hw:
+  # change later
+  - 540
+  - 540
+  model_type: smplx
+  name: x_humans
+  predict_frames:
+  - 0
+  - 0
+  - 1
+  resolution: -1
+  root_dir: ../../data/X_Humans/00036
+  train_subject: 
+  - Take4
+  - Take9
+  - Take1
+  - Take14
+  - Take5
+  - Take2
+  - Take3
+  - Take6
+  - Take12
+  - Take13
+  train_views:
+  - Take4
+  - Take9
+  - Take1
+  - Take14
+  - Take5
+  - Take2
+  - Take3
+  - Take6
+  - Take12
+  - Take13
+  val_subject:
+  - Take4
+  - Take9
+  - Take1
+  val_views:
+  - Take4
+  - Take9
+  - Take1
+  - Take14
+  - Take5
+  - Take2
+  - Take3
+  - Take6
+  - Take12
+  - Take13
+  test_frames:
+    all:
+    - 0
+    - 145
+    - 1
+    pose:
+    - 0
+    - 145
+    - 1
+  test_subject: 
+  - Take8
+  - Take11
+  - Take10
+  test_views:
+  - Take8
+  - Take11
+  - Take10
+  white_background: false
+dataset_name: xh_00036

@@ -444,7 +444,7 @@ class X_HumansDataset(Dataset):
         # final bone transforms that transforms the canonical Vitruvian-pose mesh to the posed mesh
         # without global translation
         bone_transforms_02v = self.metadata['bone_transforms_02v']
-        bone_transforms = bone_transforms #@ np.linalg.inv(bone_transforms_02v)
+        bone_transforms = bone_transforms @ np.linalg.inv(bone_transforms_02v)
         bone_transforms = bone_transforms.astype(np.float32)
         bone_transforms[:, :3, 3] += trans.reshape(1, 3)  # add global offset
 
@@ -505,7 +505,7 @@ class X_HumansDataset(Dataset):
                 storePly(ply_path, xyz, rgb)
 
                 pcd = fetchPly(ply_path)
-        import ipdb; ipdb.set_trace()
+        # import ipdb; ipdb.set_trace()
 
         return pcd
 
