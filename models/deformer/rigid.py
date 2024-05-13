@@ -224,6 +224,7 @@ class SkinningField(RigidDeform):
         if self.distill:
             self.grid = create_voxel_grid(d, h, w).cuda()
 
+        self.lambda_knn_res = cfg.lambda_knn_res
 
         self.lbs_network = get_skinning_mlp(3, cfg.d_out, cfg.skinning_network)
         # need to further check d_out is the num_joint?
@@ -260,7 +261,7 @@ class SkinningField(RigidDeform):
             # try resiudal connection
             # hardcode the lambda now, dont foget to change get skinning loss as well
             if (knn_weight is not None):
-                pts_W = 0.8 * knn_weight + 0.2 * self.softmax(self.lbs_network(xyz))
+                pts_W = self.lambda_knn_res * knn_weight + (1 - self.lambda_knn_res) * self.softmax(self.lbs_network(xyz))
             else:
                 pts_W = self.lbs_network(xyz)
                 pts_W = self.softmax(pts_W)
@@ -297,7 +298,8 @@ class SkinningField(RigidDeform):
         points_skinning = torch.from_numpy(points_skinning).cuda()
         pts_W = torch.from_numpy(pts_W).cuda()
 
-
+        points_skinning = torch.cat([points_skinning, points_skinning_hand], dim=0)
+        pts_W = torch.cat([pts_W, pts_W_hand], dim=0)
 
         return points_skinning, pts_W
 
@@ -322,7 +324,7 @@ class SkinningField(RigidDeform):
             pred_weights = F.grid_sample(self.lbs_voxel_final, pts_skinning.reshape(1, 1, 1, -1, 3), padding_mode='border')
             pred_weights = pred_weights.reshape(24, -1).permute(1, 0)
         else:
-            pred_weights = 0.8 * knn_weight + 0.2 * self.softmax(self.lbs_network(pts_skinning))
+            pred_weights = self.lambda_knn_res * knn_weight + (1 - self.lambda_knn_res) * self.softmax(self.lbs_network(pts_skinning))
             # pred_weights = self.lbs_network(pts_skinning)
             # pred_weights = self.softmax(pred_weights)
         skinning_loss = torch.nn.functional.mse_loss(
