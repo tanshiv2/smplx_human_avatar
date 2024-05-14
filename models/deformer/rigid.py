@@ -51,7 +51,7 @@ class Identity(RigidDeform):
         deformed_gaussians._xyz = x_bar
 
         deformed_gaussians.set_fwd_transform(T_fwd.detach())
-        return deformed_gaussians
+        return deformed_gaussians, torch.empty(0)
 
     def regularization(self):
         return {}
@@ -92,7 +92,7 @@ class SMPLNN(RigidDeform):
         # deformed_gaussians._rotation = tf.matrix_to_quaternion(rotation_bar)
         # deformed_gaussians._rotation = rotation_matrix_to_quaternion(rotation_bar)
 
-        return deformed_gaussians
+        return deformed_gaussians, torch.empty(0)
 
     def regularization(self):
         return {}
@@ -385,7 +385,7 @@ class SkinningField(RigidDeform):
         # deformed_gaussians._rotation = tf.matrix_to_quaternion(rotation_bar)
         # deformed_gaussians._rotation = rotation_matrix_to_quaternion(rotation_bar)
 
-        return deformed_gaussians
+        return deformed_gaussians, pts_W
 
     def regularization(self):
         loss_skinning, pts_skinning, sampled_weights, pred_weights = self.get_skinning_loss()
