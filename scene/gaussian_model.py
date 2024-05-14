@@ -56,6 +56,8 @@ class GaussianModel:
             self.feature_dim = cfg.feature_dim
 
         self._xyz = torch.empty(0)
+        # the joint weights of xyz, size of (N, J) 
+        self._xyz_J = torch.empty(0)
         self._features_dc = torch.empty(0)
         self._features_rest = torch.empty(0)
         self._scaling = torch.empty(0)
@@ -155,6 +157,13 @@ class GaussianModel:
     def get_opacity(self):
         return self.opacity_activation(self._opacity)
     
+    @property
+    def get_xyz_J(self):
+        return self._xyz_J
+
+    def set_xyz_J(self, xyz_J):
+        self._xyz_J = xyz_J
+
     def get_covariance(self, scaling_modifier = 1):
         if hasattr(self, 'rotation_precomp'):
             return self.covariance_activation(self.get_scaling, scaling_modifier, self.rotation_precomp)
@@ -405,15 +414,41 @@ class GaussianModel:
         self.denom = torch.zeros((self.get_xyz.shape[0], 1), device="cuda")
         self.max_radii2D = torch.zeros((self.get_xyz.shape[0]), device="cuda")
 
+    def extract_hand_points(self):
+        # hands joints index
+        hand_J = range(25, 55)
+        # may not be the same as get_xyz_J since it has already been cloned
+        n_init_points = self.get_xyz.shape[0]
+        hand_points_mask = torch.zeros(n_init_points, dtype=bool, device="cuda")
+        
+        if self.get_xyz_J.shape[0] != 1:
+            xyz_argmaxJ = torch.argmax(self.get_xyz_J, dim=-1)
+            # hand_points_mask[:xyz_argmaxJ.shape[0]] = torch.where(xyz_argmaxJ == 40 , True, False)
+            for h in hand_J:
+                hand_points_mask[:xyz_argmaxJ.shape[0]] = torch.logical_or( hand_points_mask[:xyz_argmaxJ.shape[0]], torch.where(xyz_argmaxJ == h , True, False))
+            # hand_points_mask[:xyz_argmaxJ.shape[0]] = torch.logical_or( *[ xyz_argmaxJ == h for h in hand_J ] )
+
+        return hand_points_mask
+    
+    # when scale is high, after clone, that's why it has 0-padded grad
     def densify_and_split(self, grads, grad_threshold, scene_extent, N=2):
         n_init_points = self.get_xyz.shape[0]
         # Extract points that satisfy the gradient condition
         padded_grad = torch.zeros((n_init_points), device="cuda")
         padded_grad[:grads.shape[0]] = grads.squeeze()
+        # why now without norms
         selected_pts_mask = torch.where(padded_grad >= grad_threshold, True, False)
+        # hand points have lower threshold
+        hand_pts_mask = self.extract_hand_points()
+        hand_pts_mask = torch.logical_and( hand_pts_mask,
+                                           torch.where(padded_grad>= grad_threshold /4, True, False))
+       
+       
+        selected_pts_mask = torch.logical_or(selected_pts_mask, hand_pts_mask)
         selected_pts_mask = torch.logical_and(selected_pts_mask,
                                               torch.max(self.get_scaling, dim=1).values > self.percent_dense*scene_extent)
 
+        # create N new points for each selected point
         stds = self.get_scaling[selected_pts_mask].repeat(N,1)
         means =torch.zeros((stds.size(0), 3),device="cuda")
         samples = torch.normal(mean=means, std=stds)
@@ -427,15 +462,25 @@ class GaussianModel:
 
         self.densification_postfix(new_xyz, new_features_dc, new_features_rest, new_opacity, new_scaling, new_rotation)
 
+        # delete the original points, now the mask size is original mask + N times the selected points 
         prune_filter = torch.cat((selected_pts_mask, torch.zeros(N * selected_pts_mask.sum(), device="cuda", dtype=bool)))
         self.prune_points(prune_filter)
-
+    
+    # when scale is low
     def densify_and_clone(self, grads, grad_threshold, scene_extent):
         # Extract points that satisfy the gradient condition
         selected_pts_mask = torch.where(torch.norm(grads, dim=-1) >= grad_threshold, True, False)
+
+        # hand points have lower threshold
+        hand_pts_mask = self.extract_hand_points()
+        hand_pts_mask = torch.logical_and( hand_pts_mask,
+                                           torch.where(torch.norm(grads, dim=-1)>= grad_threshold /4, True, False))
+       
+
+        selected_pts_mask = torch.logical_or(selected_pts_mask,hand_pts_mask)
         selected_pts_mask = torch.logical_and(selected_pts_mask,
                                               torch.max(self.get_scaling, dim=1).values <= self.percent_dense*scene_extent)
-        
+        # import ipdb; ipdb.set_trace()
         new_xyz = self._xyz[selected_pts_mask]
         new_features_dc = self._features_dc[selected_pts_mask]
         new_features_rest = self._features_rest[selected_pts_mask]
@@ -444,6 +489,7 @@ class GaussianModel:
         new_rotation = self._rotation[selected_pts_mask]
 
         self.densification_postfix(new_xyz, new_features_dc, new_features_rest, new_opacities, new_scaling, new_rotation)
+
 
     def densify_and_prune(self, opt, scene, max_screen_size):
         extent = scene.cameras_extent
