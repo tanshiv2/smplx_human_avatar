@@ -217,7 +217,8 @@ class SkinningField(RigidDeform):
         self.faces = metadata['faces']
         self.cano_mesh = metadata["cano_mesh"]
         self.cano_hand_mesh = metadata["cano_hand_mesh"]
-        
+        self.hand2cano = metadata['hand2cano_dict']
+
         self.distill = cfg.distill
         d, h, w = cfg.res // cfg.z_ratio, cfg.res, cfg.res
         self.resolution = (d, h, w)
@@ -284,14 +285,16 @@ class SkinningField(RigidDeform):
         points_skinning_hand, face_idx_hand = self.cano_hand_mesh.sample(self.cfg.n_reg_pts, return_index=True)
         points_skinning_hand = points_skinning_hand.view(np.ndarray).astype(np.float32)
         faces_hand = self.cano_hand_mesh.faces
+        verts_hand = self.cano_hand_mesh.vertices.view(np.ndarray).astype(np.float32)
         bary_coords_hand = igl.barycentric_coordinates_tri(
             points_skinning_hand,
-            self.smpl_verts[faces_hand[face_idx_hand, 0], :],
-            self.smpl_verts[faces_hand[face_idx_hand, 1], :],
-            self.smpl_verts[faces_hand[face_idx_hand, 2], :],
+            verts_hand[faces_hand[face_idx_hand, 0], :],
+            verts_hand[faces_hand[face_idx_hand, 1], :],
+            verts_hand[faces_hand[face_idx_hand, 2], :],
         )
         vert_ids_hand = faces_hand[face_idx_hand, ...]
-        pts_W_hand = (self.skinning_weights[vert_ids_hand] * bary_coords_hand[..., None]).sum(axis=1)
+        vert_ids_cano = self.hand2cano[vert_ids_hand]
+        pts_W_hand = (self.skinning_weights[vert_ids_cano] * bary_coords_hand[..., None]).sum(axis=1)
         points_skinning_hand = torch.from_numpy(points_skinning_hand).cuda()
         pts_W_hand = torch.from_numpy(pts_W_hand).cuda()
 
@@ -331,7 +334,7 @@ class SkinningField(RigidDeform):
             pred_weights, sampled_weights, reduction='none').sum(-1).mean()
         # breakpoint()
 
-        return skinning_loss
+        return skinning_loss, pts_skinning, sampled_weights, pred_weights
 
 
     def forward(self, gaussians, iteration, camera, **kwargs):
@@ -370,9 +373,12 @@ class SkinningField(RigidDeform):
         return deformed_gaussians
 
     def regularization(self):
-        loss_skinning = self.get_skinning_loss()
+        loss_skinning, pts_skinning, sampled_weights, pred_weights = self.get_skinning_loss()
         return {
-            'loss_skinning': loss_skinning
+            'loss_skinning': loss_skinning,
+            'pts_skinning': pts_skinning,
+            'sampled_weights': sampled_weights,
+            'pred_weights': pred_weights
         }
 
 def get_rigid_deform(cfg, metadata):
