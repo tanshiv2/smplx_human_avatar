@@ -12,7 +12,14 @@ class Deformer(nn.Module):
 
     def forward(self, gaussians, camera, iteration, compute_loss=True):
         loss_reg = {}
+        
         deformed_gaussians, loss_non_rigid = self.non_rigid(gaussians, iteration, camera, compute_loss)
+        
+        # get the joint weights of each points
+        gaussians.set_xyz_J(self.rigid.get_xyz_J(deformed_gaussians))
+        # if (iteration % 1000 == 0):
+        #     import ipdb; ipdb.set_trace()
+        
         deformed_gaussians = self.rigid(deformed_gaussians, iteration, camera)
 
         loss_reg.update(loss_non_rigid)
