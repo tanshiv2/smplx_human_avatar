@@ -20,6 +20,10 @@ class RigidDeform(nn.Module):
 
     def regularization(self):
         return NotImplementedError
+    
+    def get_xyz_J(self, gaussians):
+        return torch.empty(0)
+
 
 class Identity(RigidDeform):
     """ Identity mapping for single frame reconstruction """
@@ -335,6 +339,17 @@ class SkinningField(RigidDeform):
         # breakpoint()
 
         return skinning_loss, pts_skinning, sampled_weights, pred_weights
+    
+    # get (N, J) representing the joint weights of each point
+    def get_xyz_J(self, gaussians):
+        xyz = gaussians.get_xyz
+        knn_weights = self.query_weights(xyz)
+        xyz_norm = self.aabb.normalize(xyz, sym=True)
+        pts_W = self.softmax(self.lbs_network(xyz_norm))
+
+        # pts_W = self.lambda_knn_res * knn_weights + (1 - self.lambda_knn_res) * pts_W
+        return self.lambda_knn_res * knn_weights + (1 - self.lambda_knn_res) * pts_W
+
 
 
     def forward(self, gaussians, iteration, camera, **kwargs):
