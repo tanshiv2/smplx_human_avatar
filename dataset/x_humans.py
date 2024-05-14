@@ -311,7 +311,14 @@ class X_HumansDataset(Dataset):
         num_matches_per_vertex = torch.sum(vertex_matches, dim=2)
         num_occurrences_per_row = torch.sum(num_matches_per_vertex, dim=1)
         hand_meshes_idx = torch.nonzero(num_occurrences_per_row >= 3).squeeze() #faces containing hand vertices
-        cano_hand_mesh = trimesh.Trimesh(vertices=vertices.astype(np.float32), faces=self.faces[hand_meshes_idx])
+        # cano_hand_mesh = trimesh.Trimesh(vertices=vertices.astype(np.float32), faces=self.faces[hand_meshes_idx])
+        hand_verts = vertices[hand_vertices_idx].astype(np.float32)
+        cano_hand_mesh = trimesh.Trimesh(vertices=vertices.astype(np.float32), faces=faces_tensor[hand_meshes_idx])
+        hand2cano_dict = hand_vertices_idx
+
+        # # check if hand_verts and vertices in hand_meshes_idx are the same
+        # hand_verts_matches = np.allclose(hand_verts, cano_hand_mesh.vertices)
+        # print(f"Hand verts and cano hand mesh vertices match: {hand_verts_matches}")
 
         return {
             'gender': gender,
@@ -327,6 +334,7 @@ class X_HumansDataset(Dataset):
             'aabb': AABB(coord_max, coord_min),
             'cano_hand_mesh': cano_hand_mesh,
             'hand_meshes_idx': hand_meshes_idx,
+            'hand2cano_dict': hand2cano_dict,
         }
 
     def get_smpl_data(self):
