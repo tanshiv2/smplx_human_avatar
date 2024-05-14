@@ -441,13 +441,14 @@ class GaussianModel:
         # hand points have lower threshold
         hand_pts_mask = self.extract_hand_points()
         hand_pts_mask = torch.logical_and( hand_pts_mask,
-                                           torch.where(padded_grad>= grad_threshold /2, True, False))
+                                           torch.where(padded_grad>= grad_threshold /4, True, False))
        
        
         selected_pts_mask = torch.logical_or(selected_pts_mask, hand_pts_mask)
         selected_pts_mask = torch.logical_and(selected_pts_mask,
                                               torch.max(self.get_scaling, dim=1).values > self.percent_dense*scene_extent)
 
+        # create N new points for each selected point
         stds = self.get_scaling[selected_pts_mask].repeat(N,1)
         means =torch.zeros((stds.size(0), 3),device="cuda")
         samples = torch.normal(mean=means, std=stds)
@@ -461,6 +462,7 @@ class GaussianModel:
 
         self.densification_postfix(new_xyz, new_features_dc, new_features_rest, new_opacity, new_scaling, new_rotation)
 
+        # delete the original points, now the mask size is original mask + N times the selected points 
         prune_filter = torch.cat((selected_pts_mask, torch.zeros(N * selected_pts_mask.sum(), device="cuda", dtype=bool)))
         self.prune_points(prune_filter)
     
@@ -472,7 +474,7 @@ class GaussianModel:
         # hand points have lower threshold
         hand_pts_mask = self.extract_hand_points()
         hand_pts_mask = torch.logical_and( hand_pts_mask,
-                                           torch.where(torch.norm(grads, dim=-1)>= grad_threshold /2, True, False))
+                                           torch.where(torch.norm(grads, dim=-1)>= grad_threshold /4, True, False))
        
 
         selected_pts_mask = torch.logical_or(selected_pts_mask,hand_pts_mask)

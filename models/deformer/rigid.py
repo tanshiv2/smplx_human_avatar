@@ -51,7 +51,7 @@ class Identity(RigidDeform):
         deformed_gaussians._xyz = x_bar
 
         deformed_gaussians.set_fwd_transform(T_fwd.detach())
-        return deformed_gaussians
+        return deformed_gaussians, torch.empty(0)
 
     def regularization(self):
         return {}
@@ -92,7 +92,7 @@ class SMPLNN(RigidDeform):
         # deformed_gaussians._rotation = tf.matrix_to_quaternion(rotation_bar)
         # deformed_gaussians._rotation = rotation_matrix_to_quaternion(rotation_bar)
 
-        return deformed_gaussians
+        return deformed_gaussians, torch.empty(0)
 
     def regularization(self):
         return {}
@@ -272,7 +272,7 @@ class SkinningField(RigidDeform):
                 pts_W = self.softmax(pts_W)
             # import ipdb; ipdb.set_trace()
             T_fwd = torch.matmul(pts_W, tfs.view(-1, 16)).view(-1, 4, 4).float()
-        return T_fwd
+        return T_fwd, pts_W
 
     def sample_skinning_loss(self):
         points_skinning, face_idx = self.cano_mesh.sample(self.cfg.n_reg_pts, return_index=True)
@@ -368,7 +368,7 @@ class SkinningField(RigidDeform):
         # Joint number is 55 
         # 3 -> 55 
         # N*3 -> N*55 -> N*16
-        T_fwd = self.get_forward_transform(xyz_norm, tfs, knn_weights)
+        T_fwd, pts_W = self.get_forward_transform(xyz_norm, tfs, knn_weights)
 
         deformed_gaussians = gaussians.clone()
         deformed_gaussians.set_fwd_transform(T_fwd.detach())
@@ -384,7 +384,7 @@ class SkinningField(RigidDeform):
         # deformed_gaussians._rotation = tf.matrix_to_quaternion(rotation_bar)
         # deformed_gaussians._rotation = rotation_matrix_to_quaternion(rotation_bar)
 
-        return deformed_gaussians
+        return deformed_gaussians, pts_W
 
     def regularization(self):
         loss_skinning, pts_skinning, sampled_weights, pred_weights = self.get_skinning_loss()
