@@ -93,6 +93,9 @@ class GaussianModel:
     def set_fwd_transform(self, T_fwd):
         self.fwd_transform = T_fwd
 
+    def set_skinning_weights(self, skinning_weights):
+        self.skinning_weights = skinning_weights
+
     def color_by_opacity(self):
         cloned = self.clone()
         cloned._features_dc = self.get_opacity.unsqueeze(-1).expand(-1,-1,3)

@@ -15,7 +15,7 @@ class RigidDeform(nn.Module):
         super().__init__()
         self.cfg = cfg
 
-    def forward(self, gaussians, iteration, camera):
+    def forward(self, gaussians, iteration, camera, **kwargs):
         raise NotImplementedError
 
     def regularization(self):
@@ -26,7 +26,7 @@ class Identity(RigidDeform):
     def __init__(self, cfg, metadata):
         super().__init__(cfg)
 
-    def forward(self, gaussians, iteration, camera):
+    def forward(self, gaussians, iteration, camera, **kwargs):
         tfs = camera.bone_transforms
         # global translation
         trans = tfs[:, :3, 3].mean(0)        
@@ -66,7 +66,7 @@ class SMPLNN(RigidDeform):
 
         return pts_W
 
-    def forward(self, gaussians, iteration, camera):
+    def forward(self, gaussians, iteration, camera, **kwargs):
         bone_transforms = camera.bone_transforms
 
         xyz = gaussians.get_xyz
@@ -267,7 +267,7 @@ class SkinningField(RigidDeform):
                 pts_W = self.softmax(pts_W)
             # import ipdb; ipdb.set_trace()
             T_fwd = torch.matmul(pts_W, tfs.view(-1, 16)).view(-1, 4, 4).float()
-        return T_fwd
+        return T_fwd, pts_W
 
     def sample_skinning_loss(self):
         points_skinning, face_idx = self.cano_mesh.sample(self.cfg.n_reg_pts, return_index=True)
@@ -334,7 +334,7 @@ class SkinningField(RigidDeform):
         return skinning_loss
 
 
-    def forward(self, gaussians, iteration, camera):
+    def forward(self, gaussians, iteration, camera, **kwargs):
 
         tfs = camera.bone_transforms
         # Gaussian position
@@ -350,10 +350,11 @@ class SkinningField(RigidDeform):
         # Joint number is 55 
         # 3 -> 55 
         # N*3 -> N*55 -> N*16
-        T_fwd = self.get_forward_transform(xyz_norm, tfs, knn_weights)
+        T_fwd, pts_W = self.get_forward_transform(xyz_norm, tfs, knn_weights)
 
         deformed_gaussians = gaussians.clone()
         deformed_gaussians.set_fwd_transform(T_fwd.detach())
+        deformed_gaussians.set_skinning_weights(pts_W.detach())
 
         homo_coord = torch.ones(n_pts, 1, dtype=torch.float32, device=xyz.device)
         x_hat_homo = torch.cat([xyz, homo_coord], dim=-1).view(n_pts, 4, 1)

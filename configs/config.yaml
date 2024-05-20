@@ -66,8 +66,11 @@ opt:
   lr_ratio: 0.01
 
   # loss weights
-  lambda_l1: 1.
+  lambda_l1: 1.0
   lambda_dssim: 0.
+  # lambda_l1_hands: [0.01, 4000, 0.03, 8000, 0.05]
+  lambda_l1_hands: 0.
+  lambda_dssim_hands: 0.
   lambda_perceptual: 1e-2
   mask_loss_type: l1
 #  lambda_mask: [0.1,5000,0]

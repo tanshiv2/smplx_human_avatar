@@ -127,6 +127,39 @@ def training(config):
         # Here we can ignore the loss_dssim, since lambda_dssim is set to 0
         loss = lambda_l1 * loss_l1 + lambda_dssim * loss_dssim
 
+        lambda_l1_hands = C(iteration, config.opt.get('lambda_l1_hands', 0.))
+        lambda_dssim_hands = C(iteration, config.opt.get('lambda_dssim_hands', 0.))
+
+        left_hand_mask = render_pkg["left_hand_mask"]
+        right_hand_mask = render_pkg["right_hand_mask"]
+        loss_l1_hands = torch.tensor(0.).cuda()
+        loss_dssim_hands = torch.tensor(0.).cuda()
+
+        if torch.any(left_hand_mask != 0):
+            mask = left_hand_mask.detach().cpu().numpy()
+            mask = np.where(mask)
+            y1, y2 = mask[1].min(), mask[1].max() + 1
+            x1, x2 = mask[2].min(), mask[2].max() + 1
+            lh_image = torch.where(left_hand_mask != 0, image, torch.zeros_like(image))[:, y1:y2, x1:x2]
+            lh_gt_image = torch.where(left_hand_mask != 0, gt_image, torch.zeros_like(gt_image))[:, y1:y2, x1:x2]
+            if lambda_l1_hands > 0.:
+                loss_l1_hands += l1_loss(lh_image, lh_gt_image)
+            if lambda_dssim_hands > 0.:
+                loss_dssim_hands += 1.0 - ssim(lh_image, lh_gt_image)
+
+        if torch.any(right_hand_mask != 0):
+            mask = right_hand_mask.detach().cpu().numpy()
+            mask = np.where(mask)
+            y1, y2 = mask[1].min(), mask[1].max() + 1
+            x1, x2 = mask[2].min(), mask[2].max() + 1
+            rh_image = torch.where(right_hand_mask != 0, image, torch.zeros_like(image))[:, y1:y2, x1:x2]
+            rh_gt_image = torch.where(right_hand_mask != 0, gt_image, torch.zeros_like(gt_image))[:, y1:y2, x1:x2]
+            if lambda_l1_hands > 0.:
+                loss_l1_hands += l1_loss(rh_image, rh_gt_image)
+            if lambda_dssim_hands > 0.:
+                loss_dssim_hands += 1.0 - ssim(rh_image, rh_gt_image)
+
+        loss += lambda_l1_hands * loss_l1_hands + lambda_dssim_hands * loss_dssim_hands
 
         # perceptual loss
         lambda_perceptual = C(iteration, config.opt.get('lambda_perceptual', 0.))
@@ -199,6 +232,8 @@ def training(config):
             log_loss = {
                 'loss/l1_loss': loss_l1.item(),
                 'loss/ssim_loss': loss_dssim.item(),
+                'loss/l1_hands_loss': loss_l1_hands.item(),
+                'loss/ssim_hands_loss': loss_dssim_hands.item(),
                 'loss/perceptual_loss': loss_perceptual.item(),
                 'loss/mask_loss': loss_mask.item(),
                 'loss/loss_skinning': loss_skinning.item(),
@@ -264,9 +299,13 @@ def validation(iteration, testing_iterations, testing_interval, scene : Scene, e
     for config in validation_configs:
         if config['cameras'] and len(config['cameras']) > 0:
             l1_test = 0.0
+            l1_hands_test = 0.0
             psnr_test = 0.0
             ssim_test = 0.0
             lpips_test = 0.0
+            psnr_hands_test = 0.0
+            ssim_hands_test = 0.0
+            lpips_hands_test = 0.0
             examples = []
             for idx, data_idx in enumerate(config['cameras']):
                 data = getattr(scene, config['name'] + '_dataset')[data_idx]
@@ -291,6 +330,15 @@ def validation(iteration, testing_iterations, testing_interval, scene : Scene, e
                 ssim_test += metrics_test["ssim"]
                 lpips_test += metrics_test["lpips"]
 
+                hands_mask = torch.clamp(render_pkg["left_hand_mask"] + render_pkg["right_hand_mask"], 0.0, 1.0)
+                image_hands = torch.where(hands_mask != 0, image, torch.zeros_like(image))
+                gt_image_hands = torch.where(hands_mask != 0, gt_image, torch.zeros_like(gt_image))
+                l1_hands_test += l1_loss(image_hands, gt_image_hands).mean().double()
+                metrics_test = evaluator(image_hands, gt_image_hands)
+                psnr_hands_test += metrics_test["psnr"]
+                ssim_hands_test += metrics_test["ssim"]
+                lpips_hands_test += metrics_test["lpips"]
+
                 wandb.log({config['name'] + "_images": examples})
                 examples.clear()
 
@@ -298,12 +346,20 @@ def validation(iteration, testing_iterations, testing_interval, scene : Scene, e
             ssim_test /= len(config['cameras'])
             lpips_test /= len(config['cameras'])
             l1_test /= len(config['cameras'])
+            psnr_hands_test /= len(config['cameras'])
+            ssim_hands_test /= len(config['cameras'])
+            lpips_hands_test /= len(config['cameras'])
+            l1_hands_test /= len(config['cameras'])
             print("\n[ITER {}] Evaluating {}: L1 {} PSNR {}".format(iteration, config['name'], l1_test, psnr_test))
             wandb.log({
                 config['name'] + '/loss_viewpoint - l1_loss': l1_test,
                 config['name'] + '/loss_viewpoint - psnr': psnr_test,
                 config['name'] + '/loss_viewpoint - ssim': ssim_test,
                 config['name'] + '/loss_viewpoint - lpips': lpips_test,
+                config['name'] + '/loss_hands - l1_loss': l1_hands_test,
+                config['name'] + '/loss_hands - psnr': psnr_hands_test,
+                config['name'] + '/loss_hands - ssim': ssim_hands_test,
+                config['name'] + '/loss_hands - lpips': lpips_hands_test,
             })
 
     wandb.log({'scene/opacity_histogram': wandb.Histogram(scene.gaussians.get_opacity.cpu())})
