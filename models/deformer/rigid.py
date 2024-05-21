@@ -9,6 +9,7 @@ import igl
 
 from utils.general_utils import build_rotation
 from models.network_utils import get_skinning_mlp
+from utils.dataset_utils import AABB 
 
 class RigidDeform(nn.Module):
     def __init__(self, cfg):
@@ -231,7 +232,7 @@ class SkinningField(RigidDeform):
 
         self.lambda_knn_res = cfg.lambda_knn_res
 
-        self.lbs_network = get_skinning_mlp(3, cfg.d_out, cfg.skinning_network)
+        self.lbs_network = get_skinning_mlp(3, 55 , cfg.skinning_network)
         # need to further check d_out is the num_joint?
         # - theoretically yes, lbs_network input: sampled cano points, output: weights for each joint
         self.d_out = cfg.d_out
@@ -255,7 +256,7 @@ class SkinningField(RigidDeform):
         pts_W = self.skinning_weights_tensor[p_idx, :]
         return pts_W
     
-    def get_forward_transform(self, xyz, tfs, knn_weight = None):
+    def get_forward_transform(self, xyz, tfs):
         if self.distill:
             self.precompute(recompute_skinning=self.training)
             fwd_grid = torch.einsum("bcdhw,bcxy->bxydhw", self.lbs_voxel_final, tfs[None])
@@ -265,11 +266,10 @@ class SkinningField(RigidDeform):
         else:
             # try resiudal connection
             # hardcode the lambda now, dont foget to change get skinning loss as well
-            if (knn_weight is not None):
-                pts_W = self.lambda_knn_res * knn_weight + (1 - self.lambda_knn_res) * self.softmax(self.lbs_network(xyz))
-            else:
-                pts_W = self.lbs_network(xyz)
-                pts_W = self.softmax(pts_W)
+            knn_weight = self.query_weights(xyz)
+
+            pts_W = self.lambda_knn_res * knn_weight + (1 - self.lambda_knn_res) * self.softmax(self.lbs_network(xyz))
+
             # import ipdb; ipdb.set_trace()
             T_fwd = torch.matmul(pts_W, tfs.view(-1, 16)).view(-1, 4, 4).float()
         return T_fwd, pts_W
@@ -316,7 +316,7 @@ class SkinningField(RigidDeform):
             w = hierarchical_softmax(logit)
             # w = F.softmax(logit, dim=-1)
         # elif logit.shape[-1] == 24:
-        elif logit.shape[-1] == (self.d_out-1):
+        elif logit.shape[-1] != self.d_out:
             w = F.softmax(logit, dim=-1)
         else:
             raise ValueError
@@ -324,8 +324,8 @@ class SkinningField(RigidDeform):
 
     def get_skinning_loss(self):
         pts_skinning, sampled_weights = self.sample_skinning_loss()
-        knn_weight = self.query_weights(pts_skinning)
         pts_skinning = self.aabb.normalize(pts_skinning, sym=True)
+        knn_weight = self.query_weights(pts_skinning)
 
         if self.distill:
             pred_weights = F.grid_sample(self.lbs_voxel_final, pts_skinning.reshape(1, 1, 1, -1, 3), padding_mode='border')
@@ -336,15 +336,14 @@ class SkinningField(RigidDeform):
             # pred_weights = self.softmax(pred_weights)
         skinning_loss = torch.nn.functional.mse_loss(
             pred_weights, sampled_weights, reduction='none').sum(-1).mean()
-        # breakpoint()
 
         return skinning_loss, pts_skinning, sampled_weights, pred_weights
     
     # get (N, J) representing the joint weights of each point
     def get_xyz_J(self, gaussians):
         xyz = gaussians.get_xyz
-        knn_weights = self.query_weights(xyz)
         xyz_norm = self.aabb.normalize(xyz, sym=True)
+        knn_weights = self.query_weights(xyz_norm)
         pts_W = self.softmax(self.lbs_network(xyz_norm))
 
         # pts_W = self.lambda_knn_res * knn_weights + (1 - self.lambda_knn_res) * pts_W
@@ -359,8 +358,24 @@ class SkinningField(RigidDeform):
         xyz = gaussians.get_xyz
         n_pts = xyz.shape[0]
 
-        # KNN
-        knn_weights = self.query_weights(xyz)
+        if iteration %500 == 0:
+            coord_max = np.max(xyz.detach().cpu().numpy(), axis=0)
+            coord_min = np.min(xyz.detach().cpu().numpy(), axis=0)
+            # hard code the padding as 0.1 here
+            # later should be a parameter
+            padding_ratio = 0.1
+            padding_ratio = np.array(padding_ratio, dtype=np.float32)
+            padding = (coord_max - coord_min) * padding_ratio
+            coord_max += padding
+            coord_min -= padding
+            # print("originla coord_max: ", self.aabb.coord_max)
+            # print("originla coord_min: ", self.aabb.coord_min)
+            # print("new coord_max: ", coord_max)
+            # print("new coord_min: ", coord_min)
+
+            self.aabb.update(coord_max, coord_min)
+
+
 
         # normalizing position 
         xyz_norm = self.aabb.normalize(xyz, sym=True)
@@ -368,7 +383,7 @@ class SkinningField(RigidDeform):
         # Joint number is 55 
         # 3 -> 55 
         # N*3 -> N*55 -> N*16
-        T_fwd, pts_W = self.get_forward_transform(xyz_norm, tfs, knn_weights)
+        T_fwd, pts_W = self.get_forward_transform(xyz_norm, tfs)
 
         deformed_gaussians = gaussians.clone()
         deformed_gaussians.set_fwd_transform(T_fwd.detach())
