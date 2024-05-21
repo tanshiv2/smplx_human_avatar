@@ -7,3 +7,4 @@ model:
     non_rigid:
       name: identity
       delay: 0
+      feature_dim: ${model.texture.non_rigid_dim}
