@@ -60,6 +60,12 @@ def visualizing(config):
     skinning_weights = metadata["skinning_weights"]
     cano_mesh = metadata["cano_mesh"]
     smpl_verts = metadata["smpl_verts"]
+    hand_mesh = metadata['cano_hand_mesh']
+    # print("cano_mesh: ", cano_mesh)
+    # print("cano_hand_mesh: ", hand_mesh)
+    pts_skinning, pts_W_hand = hand_sampling(metadata)
+    save_handsamples(pts_skinning, pts_W_hand)
+
     
 
 def save_skinning(metadata):
@@ -124,20 +130,40 @@ def hand_sampling(metadata):
     skinning_weights = metadata["skinning_weights"]
     points_skinning, face_idx = cano_hand_mesh.sample(1024, return_index=True)
     hand_faces = cano_hand_mesh.faces
+    hand_verts = cano_hand_mesh.vertices
+    points_skinning = points_skinning.view(np.ndarray).astype(np.float32)
+    hand_verts = hand_verts.view(np.ndarray).astype(np.float32)
+    hand2cano = metadata['hand2cano_dict']
     bary_coords = igl.barycentric_coordinates_tri(
         points_skinning,
-        smpl_verts[hand_faces[face_idx, 0], :],
-        smpl_verts[hand_faces[face_idx, 1], :],
-        smpl_verts[hand_faces[face_idx, 2], :],
+        hand_verts[hand_faces[face_idx, 0], :],
+        hand_verts[hand_faces[face_idx, 1], :],
+        hand_verts[hand_faces[face_idx, 2], :],
     )
     vert_ids_hand = hand_faces[face_idx, ...]
-    pts_W_hand = (skinning_weights[vert_ids_hand] * bary_coords[..., None]).sum(axis=1)
-    points_skinning_hand = torch.from_numpy(points_skinning_hand).cuda()
+    vert_ids_cano = hand2cano[vert_ids_hand]
+    pts_W_hand = (skinning_weights[vert_ids_cano] * bary_coords[..., None]).sum(axis=1)
+    points_skinning = torch.from_numpy(points_skinning).cuda()
     pts_W_hand = torch.from_numpy(pts_W_hand).cuda()
-    # with open(f'hand_sampling.txt', 'w') as f:
-    #     for point in points_skinning:
-    #         color = torch.tensor([1.0, 0.0, 0.0])
-    #         f.write(f"{point[0]} {point[1]} {point[2]} {color[0]} {color[1]} {color[2]}\n")
+    return points_skinning, pts_W_hand
+
+def save_handsamples(points_skinning, pts_W_hand):
+    num_joints = 55 # assuming on smplx model
+    joint_colors = plt.cm.get_cmap('tab20')(np.linspace(0, 1, 20))
+    joint_colors = np.vstack((joint_colors, plt.cm.get_cmap('tab20b')(np.linspace(0, 1, 20))))
+    joint_colors = np.vstack((joint_colors, plt.cm.get_cmap('tab20c')(np.linspace(0, 1, 15))))
+    joint_colors = joint_colors[:,:3]
+    points = points_skinning.detach().cpu()
+    weights = pts_W_hand.detach().cpu()
+    maxjoint_idx = torch.argmax(weights, dim=1)
+    point_colors = joint_colors[maxjoint_idx]
+    with open(f'hand_sampling.txt', 'w') as f:
+                with open(f'weights_verification.txt', 'w') as f:
+                    for point, color in zip(points, point_colors):
+                        # Write XYZRGB data to the file
+                        f.write(f"{point[0]} {point[1]} {point[2]} {color[0]} {color[1]} {color[2]}\n")
+
+    
 
 @hydra.main(version_base=None, config_path="configs", config_name="config")
 def main(config):
@@ -146,7 +172,7 @@ def main(config):
 
     config.exp_dir = config.get('exp_dir') or os.path.join('./exp', config.name)
     os.makedirs(config.exp_dir, exist_ok=True)
-    config.checkpoint_iterations.append(config.opt.iterations)
+    # config.checkpoint_iterations.append(config.opt.iterations)
 
     # # set wandb logger
     # wandb_name = config.name

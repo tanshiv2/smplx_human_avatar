@@ -164,7 +164,10 @@ def training(config):
         # skinning loss
         lambda_skinning = C(iteration, config.opt.lambda_skinning)
         if lambda_skinning > 0:
-            loss_skinning = scene.get_skinning_loss()  # Todo: Needed to inspect the skinning loss
+            loss_skinning, pts_skinning, sampled_weights, pred_weights = scene.get_skinning_loss()  # Todo: Needed to inspect the skinning loss
+            vzy_weights_interval = 1000
+            if iteration % vzy_weights_interval == 0:
+                scene.vzy_weights(pts_skinning, sampled_weights, pred_weights, iteration)
             loss += lambda_skinning * loss_skinning
         else:
             loss_skinning = torch.tensor(0.).cuda()

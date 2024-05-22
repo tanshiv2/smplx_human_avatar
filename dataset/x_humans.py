@@ -44,6 +44,7 @@ class X_HumansDataset(Dataset):
         self.h, self.w = cfg.img_hw
 
         self.model_type = cfg.model_type
+        self.init_H = False
         # safely set it as smpl
         if not self.model_type in ['smpl', 'smplx']:
             self.model_type = 'smpl'
@@ -507,20 +508,35 @@ class X_HumansDataset(Dataset):
             if self.model_type == 'smpl':
                 ply_path = os.path.join(self.root_dir, 'cano_smpl.ply')
             elif self.model_type == 'smplx':
-                ply_path = os.path.join(self.root_dir, 'cano_smplx.ply')
+                if self.init_H:
+                    ply_path = os.path.join(self.root_dir, 'cano_smplx_H.ply')
+                else:
+                    ply_path = os.path.join(self.root_dir, 'cano_smplx.ply')
             try:
                 pcd = fetchPly(ply_path)
             except:
-                verts = self.metadata['smpl_verts']
-                faces = self.faces
-                mesh = trimesh.Trimesh(vertices=verts, faces=faces)
-                n_points = 50_000
+                if self.init_H:
+                    cano_mesh = self.metadata['cano_mesh']
+                    cano_hand_mesh = self.metadata['cano_hand_mesh']
+                    n_points_cano = 50000
+                    n_points_hand = 5000
+                    xyz_cano = cano_mesh.sample(n_points_cano)
+                    xyz_hand = cano_hand_mesh.sample(n_points_hand)
+                    xyz = np.concatenate([xyz_cano, xyz_hand], axis=0)
+                    rgb = np.ones_like(xyz) * 255
+                    storePly(ply_path, xyz, rgb)
+                    pcd = fetchPly(ply_path)
+                else:
+                    verts = self.metadata['smpl_verts']
+                    faces = self.faces
+                    mesh = trimesh.Trimesh(vertices=verts, faces=faces)
+                    n_points = 50_000
 
-                xyz = mesh.sample(n_points)
-                rgb = np.ones_like(xyz) * 255
-                storePly(ply_path, xyz, rgb)
+                    xyz = mesh.sample(n_points)
+                    rgb = np.ones_like(xyz) * 255
+                    storePly(ply_path, xyz, rgb)
 
-                pcd = fetchPly(ply_path)
+                    pcd = fetchPly(ply_path)
 
         return pcd
 

@@ -88,7 +88,34 @@ class Scene:
     def get_skinning_loss(self):
         loss_reg = self.converter.deformer.rigid.regularization()
         loss_skinning = loss_reg.get('loss_skinning', torch.tensor(0.).cuda())
-        return loss_skinning
+        pts_skinning = loss_reg.get('pts_skinning', torch.tensor(0.).cuda())
+        sampled_weights = loss_reg.get('sampled_weights', torch.tensor(0.).cuda())
+        pred_weights = loss_reg.get('pred_weights', torch.tensor(0.).cuda())
+
+        return loss_skinning, pts_skinning, sampled_weights, pred_weights
+
+
+    def vzy_weights(self, pts_skinning, sampled_weights, pred_weights, iteration):
+        joint_colors = plt.cm.get_cmap('tab20')(np.linspace(0, 1, 20))
+        joint_colors = np.vstack((joint_colors, plt.cm.get_cmap('tab20b')(np.linspace(0, 1, 20))))
+        joint_colors = np.vstack((joint_colors, plt.cm.get_cmap('tab20c')(np.linspace(0, 1, 15))))
+        joint_colors = joint_colors[:,:3]
+        points = pts_skinning.detach().cpu()
+        pred = pred_weights.detach().cpu()
+        sampled = sampled_weights.detach().cpu()
+        maxjoint_pred_idx = torch.argmax(pred, dim=1)
+        maxjoint_sampled_idx = torch.argmax(sampled, dim=1)
+        pred_colors = joint_colors[maxjoint_pred_idx]
+        sampled_colors = joint_colors[maxjoint_sampled_idx]
+        with open(f'pred_weights_{iteration}.txt', 'w') as f:
+            for point, color in zip(points, pred_colors):
+                # Write XYZRGB data to the file
+                f.write(f"{point[0]} {point[1]} {point[2]} {color[0]} {color[1]} {color[2]}\n")
+        with open(f'sampled_weights_{iteration}.txt', 'w') as f:
+            for point, color in zip(points, sampled_colors):
+                # Write XYZRGB data to the file
+                f.write(f"{point[0]} {point[1]} {point[2]} {color[0]} {color[1]} {color[2]}\n")
+        print("XYZRGB file created successfully.")
 
     def save(self, iteration):
         point_cloud_path = os.path.join(self.save_dir, "point_cloud/iteration_{}".format(iteration))
