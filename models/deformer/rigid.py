@@ -218,6 +218,7 @@ class SkinningField(RigidDeform):
         
         
         self.aabb = metadata["aabb"]
+        self.cano_aabb = metadata['aabb']
         # self.faces = np.load('body_models/misc/faces.npz')['faces']
         self.faces = metadata['faces']
         self.cano_mesh = metadata["cano_mesh"]
@@ -286,7 +287,7 @@ class SkinningField(RigidDeform):
         vert_ids = self.faces[face_idx, ...]
         pts_W = (self.skinning_weights[vert_ids] * bary_coords[..., None]).sum(axis=1)
         # adding samples for hand
-        points_skinning_hand, face_idx_hand = self.cano_hand_mesh.sample(self.cfg.n_reg_pts, return_index=True)
+        points_skinning_hand, face_idx_hand = self.cano_hand_mesh.sample(self.cfg.n_reg_pts // 4, return_index=True)
         points_skinning_hand = points_skinning_hand.view(np.ndarray).astype(np.float32)
         faces_hand = self.cano_hand_mesh.faces
         verts_hand = self.cano_hand_mesh.vertices.view(np.ndarray).astype(np.float32)
@@ -324,7 +325,7 @@ class SkinningField(RigidDeform):
 
     def get_skinning_loss(self):
         pts_skinning, sampled_weights = self.sample_skinning_loss()
-        pts_skinning = self.aabb.normalize(pts_skinning, sym=True)
+        pts_skinning = self.cano_aabb.normalize(pts_skinning, sym=True)
         knn_weight = self.query_weights(pts_skinning)
 
         if self.distill:
@@ -358,7 +359,7 @@ class SkinningField(RigidDeform):
         xyz = gaussians.get_xyz
         n_pts = xyz.shape[0]
 
-        if iteration %500 == 0:
+        if iteration %1000 == 0:
             coord_max = np.max(xyz.detach().cpu().numpy(), axis=0)
             coord_min = np.min(xyz.detach().cpu().numpy(), axis=0)
             # hard code the padding as 0.1 here
@@ -366,7 +367,7 @@ class SkinningField(RigidDeform):
             padding_ratio = 0.1
             padding_ratio = np.array(padding_ratio, dtype=np.float32)
             padding = (coord_max - coord_min) * padding_ratio
-            coord_max += padding
+            coord_max += padding 
             coord_min -= padding
             # print("originla coord_max: ", self.aabb.coord_max)
             # print("originla coord_min: ", self.aabb.coord_min)

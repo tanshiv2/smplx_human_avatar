@@ -21,6 +21,7 @@ from simple_knn._C import distCUDA2
 from utils.graphics_utils import BasicPointCloud
 from utils.general_utils import strip_symmetric, build_scaling_rotation
 
+import matplotlib.pyplot as plt
 import trimesh
 import igl
 
@@ -258,6 +259,42 @@ class GaussianModel:
         for i in range(self._rotation.shape[1]):
             l.append('rot_{}'.format(i))
         return l
+
+    def save_weights(self, path):
+        joint_colors = plt.cm.get_cmap('tab20')(np.linspace(0, 1, 20))
+        joint_colors = np.vstack((joint_colors, plt.cm.get_cmap('tab20b')(np.linspace(0, 1, 20))))
+        joint_colors = np.vstack((joint_colors, plt.cm.get_cmap('tab20c')(np.linspace(0, 1, 15))))
+        joint_colors = joint_colors[:,:3]
+        points = self.get_xyz.detach().cpu()
+        pred = self.get_xyz_J.detach().cpu()
+        maxjoint_pred_idx = torch.argmax(pred, dim=1)
+        pred_colors = joint_colors[maxjoint_pred_idx]
+        with open(path, 'w') as f:
+            for point, color in zip(points, pred_colors):
+                # Write XYZRGB data to the file
+                f.write(f"{point[0]} {point[1]} {point[2]} {color[0]} {color[1]} {color[2]}\n")
+        print("XYZRGB file created successfully.")
+
+
+    def save_aabb_deformed_ply(self, path, aabb):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        
+        xyz = aabb.normalize(self._xyz, sym=True).detach().cpu().numpy()
+
+        normals = np.zeros_like(xyz)
+        f_dc = self._features_dc.detach().transpose(1, 2).flatten(start_dim=1).contiguous().cpu().numpy()
+        f_rest = self._features_rest.detach().transpose(1, 2).flatten(start_dim=1).contiguous().cpu().numpy()
+        opacities = self._opacity.detach().cpu().numpy()
+        scale = self._scaling.detach().cpu().numpy()
+        rotation = self._rotation.detach().cpu().numpy()
+
+        dtype_full = [(attribute, 'f4') for attribute in self.construct_list_of_attributes()]
+
+        elements = np.empty(xyz.shape[0], dtype=dtype_full)
+        attributes = np.concatenate((xyz, normals, f_dc, f_rest, opacities, scale, rotation), axis=1)
+        elements[:] = list(map(tuple, attributes))
+        el = PlyElement.describe(elements, 'vertex')
+        PlyData([el]).write(path)
 
     def save_ply(self, path):
         os.makedirs(os.path.dirname(path), exist_ok=True)
