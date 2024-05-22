@@ -6,7 +6,7 @@ model:
   deformer:
     rigid:
     # same network different parameters
-      name: skinning_field
+      name: skinning_field_smplx
 
       lambda_knn_res: 0.7
       distill: false
