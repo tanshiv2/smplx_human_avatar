@@ -60,8 +60,8 @@ opt:
   rotation_lr: 0.001
 
   pose_correction_lr: 1e-4
-  # rigid_lr: 1e-4
-  rigid_lr: 1e-3
+  rigid_lr: 1e-4
+  # rigid_lr: 1e-3
   non_rigid_lr: 1e-3
   lr_ratio: 0.01
 
@@ -89,7 +89,8 @@ opt:
   densify_from_iter: 500
   densify_until_iter: 45000
   densify_grad_threshold: 0.0002
-  opacity_threshold: 0.05
+  # opacity_threshold: 0.05
+  opacity_threshold: 0.1
 
 pipeline:
   convert_SHs_python: true

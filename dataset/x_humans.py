@@ -139,9 +139,14 @@ class X_HumansDataset(Dataset):
             # frames = frames[frame_slice]
         else:
             if self.model_type == 'smpl':
+                hand_mask_files = []
                 model_files = sorted(
                     glob.glob(os.path.join(self.root_dir, self.split, self.subject, 'SMPL_processed/*.npz')))
             elif self.model_type == 'smplx':
+                hand_mask_files = sorted(
+                    glob.glob(os.path.join(self.root_dir, self.split, self.subject, 'render/hand_masks/*.png'))
+                )
+                assert(len(hand_mask_files)>0)
                 model_files = sorted(
                     glob.glob(os.path.join(self.root_dir, self.split, self.subject, 'SMPLX_processed/*.npz')))
             # something as [000000.npz, 000001.npz,...,]
@@ -199,7 +204,7 @@ class X_HumansDataset(Dataset):
                 img_file = img_files[d_idx]
                 mask_file = mask_files[d_idx]
                 model_file = model_files[d_idx]
-                hand_mask_file = hand_mask_files[d_idx]
+                hand_mask_file = hand_mask_files[d_idx] if len(hand_mask_files) > 0 else None
 
                 self.data.append({
                     'data_idx': d_idx,
@@ -207,7 +212,7 @@ class X_HumansDataset(Dataset):
                     'img_file': img_file,
                     'mask_file': mask_file,
                     'model_file': model_file,
-                    'hand_mask_file': hand_mask_file,
+                    'hand_mask_file': hand_mask_file
                 })
 
         self.frames = frames
@@ -394,14 +399,14 @@ class X_HumansDataset(Dataset):
 
         # image = cv2.imread(img_file)
         image = cv2.cvtColor(cv2.imread(img_file), cv2.COLOR_BGR2RGB)
-        hand_mask = cv2.cvtColor(cv2.imread(hand_mask_file), cv2.COLOR_BGR2RGB)
-        bg = np.logical_and(hand_mask[..., 0] == 255,
-                            np.logical_and(hand_mask[..., 1] == 255, hand_mask[..., 2] == 255))
-        hand_mask[bg] = np.array([0, 0, 0])
-        left_hand_mask = hand_mask[..., 2] == 255
-        right_hand_mask = hand_mask[..., 0] == 255
+        # hand_mask = cv2.cvtColor(cv2.imread(hand_mask_file), cv2.COLOR_BGR2RGB)
+        
+
 
         mask = cv2.imread(mask_file, cv2.IMREAD_UNCHANGED)
+        # only [255, 0, 0] and [0,  255, 0] are hand
+        hand_mask = cv2.imread(hand_mask_file, cv2.IMREAD_UNCHANGED)
+        # hand_mask = cv2.imread(hand_mask_file, cv2.IMREAD_UNCHANGED).sum(-1) if hand_mask_file is not None else np.ones_like(mask) * 255
         # Todo: How is mask used here?
 
         lanczos = self.cfg.get('lanczos', False)
@@ -409,13 +414,27 @@ class X_HumansDataset(Dataset):
 
         image = cv2.resize(image, (self.w, self.h), interpolation=interpolation)
         mask = cv2.resize(mask, (self.w, self.h), interpolation=cv2.INTER_NEAREST)
+        hand_mask = cv2.resize(hand_mask, (self.w, self.h), interpolation=cv2.INTER_NEAREST)
 
+        # hand_mask = hand_mask == 255
+
+        bg = np.logical_and(hand_mask[..., 0] == 255,
+                            np.logical_and(hand_mask[..., 1] == 255, hand_mask[..., 2] == 255))
+        hand_mask[bg] = np.array([0, 0, 0])
+        left_hand_mask = hand_mask[..., 2] == 255
+        right_hand_mask = hand_mask[..., 0] == 255
+
+        # maybe also change the mask
+        # mask = hand_mask == 255 * 3      
         mask = mask != mask.max()
         image[~mask] = 255. if self.white_bg else 0.
         image = image / 255.
 
         image = torch.from_numpy(image).permute(2, 0, 1).float()
         mask = torch.from_numpy(mask).unsqueeze(0).float()
+        hand_mask = torch.from_numpy(hand_mask).unsqueeze(0).float()
+        left_hand_mask = torch.from_numpy(left_hand_mask).unsqueeze(0).float()
+        right_hand_mask = torch.from_numpy(right_hand_mask).unsqueeze(0).float()
 
         # update camera parameters
         K[0, :] *= self.w / self.W
@@ -487,6 +506,8 @@ class X_HumansDataset(Dataset):
             mask=mask,
             left_hand_mask=left_hand_mask,
             right_hand_mask=right_hand_mask,
+            # hand_image = hand_image,
+            hand_mask=hand_mask,
             gt_alpha_mask=None,
             image_name=f"f{frame_idx if frame_idx >= 0 else -frame_idx - 1:06d}",
             data_device=self.cfg.data_device,

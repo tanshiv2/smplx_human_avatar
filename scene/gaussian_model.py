@@ -268,6 +268,8 @@ class GaussianModel:
         points = self.get_xyz.detach().cpu()
         pred = self.get_xyz_J.detach().cpu()
         maxjoint_pred_idx = torch.argmax(pred, dim=1)
+        # maxjoint_pred_idx = torch.topk(pred, k=2, dim=1)[1][..., 1]
+        # import ipdb; ipdb.set_trace()
         pred_colors = joint_colors[maxjoint_pred_idx]
         with open(path, 'w') as f:
             for point, color in zip(points, pred_colors):
@@ -279,23 +281,37 @@ class GaussianModel:
     def save_aabb_deformed_ply(self, path, aabb):
         os.makedirs(os.path.dirname(path), exist_ok=True)
         
-        xyz = aabb.normalize(self._xyz, sym=True).detach().cpu().numpy()
+        # xyz = aabb.normalize(self._xyz, sym=True).detach().cpu().numpy()
 
-        normals = np.zeros_like(xyz)
-        f_dc = self._features_dc.detach().transpose(1, 2).flatten(start_dim=1).contiguous().cpu().numpy()
-        f_rest = self._features_rest.detach().transpose(1, 2).flatten(start_dim=1).contiguous().cpu().numpy()
-        opacities = self._opacity.detach().cpu().numpy()
-        scale = self._scaling.detach().cpu().numpy()
-        rotation = self._rotation.detach().cpu().numpy()
+        # normals = np.zeros_like(xyz)
+        # f_dc = self._features_dc.detach().transpose(1, 2).flatten(start_dim=1).contiguous().cpu().numpy()
+        # f_rest = self._features_rest.detach().transpose(1, 2).flatten(start_dim=1).contiguous().cpu().numpy()
+        # opacities = self._opacity.detach().cpu().numpy()
+        # scale = self._scaling.detach().cpu().numpy()
+        # rotation = self._rotation.detach().cpu().numpy()
 
-        dtype_full = [(attribute, 'f4') for attribute in self.construct_list_of_attributes()]
+        # dtype_full = [(attribute, 'f4') for attribute in self.construct_list_of_attributes()]
 
-        elements = np.empty(xyz.shape[0], dtype=dtype_full)
-        attributes = np.concatenate((xyz, normals, f_dc, f_rest, opacities, scale, rotation), axis=1)
-        elements[:] = list(map(tuple, attributes))
-        el = PlyElement.describe(elements, 'vertex')
-        PlyData([el]).write(path)
+        # elements = np.empty(xyz.shape[0], dtype=dtype_full)
+        # attributes = np.concatenate((xyz, normals, f_dc, f_rest, opacities, scale, rotation), axis=1)
+        # elements[:] = list(map(tuple, attributes))
+        # el = PlyElement.describe(elements, 'vertex')
+        # PlyData([el]).write(path)
+        joint_colors = plt.cm.get_cmap('tab20')(np.linspace(0, 1, 20))
+        joint_colors = np.vstack((joint_colors, plt.cm.get_cmap('tab20b')(np.linspace(0, 1, 20))))
+        joint_colors = np.vstack((joint_colors, plt.cm.get_cmap('tab20c')(np.linspace(0, 1, 15))))
+        joint_colors = joint_colors[:,:3]
+        points = aabb.normalize(self._xyz, sym=True).detach().cpu().numpy()
+        pred = self.get_xyz_J.detach().cpu()
+        maxjoint_pred_idx = torch.argmax(pred, dim=1)
+        pred_colors = joint_colors[maxjoint_pred_idx]
+        with open(path, 'w') as f:
+            for point, color in zip(points, pred_colors):
+                # Write XYZRGB data to the file
+                f.write(f"{point[0]} {point[1]} {point[2]} {color[0]} {color[1]} {color[2]}\n")
+        print("XYZRGB file created successfully.")
 
+        
     def save_ply(self, path):
         os.makedirs(os.path.dirname(path), exist_ok=True)
 
@@ -471,20 +487,21 @@ class GaussianModel:
         return hand_points_mask
     
     # when scale is high, after clone, that's why it has 0-padded grad
-    def densify_and_split(self, grads, grad_threshold, scene_extent, N=2):
+    def densify_and_split(self, grads, grad_threshold, scene_extent, N=2, hand_extra_density=False):
         n_init_points = self.get_xyz.shape[0]
         # Extract points that satisfy the gradient condition
         padded_grad = torch.zeros((n_init_points), device="cuda")
         padded_grad[:grads.shape[0]] = grads.squeeze()
         # why now without norms
         selected_pts_mask = torch.where(padded_grad >= grad_threshold, True, False)
-        # hand points have lower threshold
-        hand_pts_mask = self.extract_hand_points()
-        hand_pts_mask = torch.logical_and( hand_pts_mask,
-                                           torch.where(padded_grad>= grad_threshold /4, True, False))
-       
-       
-        selected_pts_mask = torch.logical_or(selected_pts_mask, hand_pts_mask)
+        
+        if hand_extra_density:
+            # hand points have lower threshold
+            hand_pts_mask = self.extract_hand_points()
+            hand_pts_mask = torch.logical_and( hand_pts_mask,
+                                               torch.where(padded_grad>= grad_threshold /4, True, False))
+            selected_pts_mask = torch.logical_or(selected_pts_mask, hand_pts_mask)
+
         selected_pts_mask = torch.logical_and(selected_pts_mask,
                                               torch.max(self.get_scaling, dim=1).values > self.percent_dense*scene_extent)
 
@@ -507,17 +524,18 @@ class GaussianModel:
         self.prune_points(prune_filter)
     
     # when scale is low
-    def densify_and_clone(self, grads, grad_threshold, scene_extent):
+    def densify_and_clone(self, grads, grad_threshold, scene_extent, hand_extra_density=False):
         # Extract points that satisfy the gradient condition
         selected_pts_mask = torch.where(torch.norm(grads, dim=-1) >= grad_threshold, True, False)
 
+        if hand_extra_density:
         # hand points have lower threshold
-        hand_pts_mask = self.extract_hand_points()
-        hand_pts_mask = torch.logical_and( hand_pts_mask,
-                                           torch.where(torch.norm(grads, dim=-1)>= grad_threshold /4, True, False))
-       
+            hand_pts_mask = self.extract_hand_points()
+            hand_pts_mask = torch.logical_and( hand_pts_mask,
+                                               torch.where(torch.norm(grads, dim=-1)>= grad_threshold /4, True, False))        
 
-        selected_pts_mask = torch.logical_or(selected_pts_mask,hand_pts_mask)
+            selected_pts_mask = torch.logical_or(selected_pts_mask,hand_pts_mask)
+            
         selected_pts_mask = torch.logical_and(selected_pts_mask,
                                               torch.max(self.get_scaling, dim=1).values <= self.percent_dense*scene_extent)
         # import ipdb; ipdb.set_trace()

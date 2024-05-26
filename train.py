@@ -155,6 +155,14 @@ def training(config):
                 loss_dssim_hands += (1.0 - ssim(left_hand_img, gt_left_hand_img) + 1.0 - ssim(right_hand_img, gt_right_hand_img)) / 2
 
         loss += lambda_l1_hands * loss_l1_hands + lambda_dssim_hands * loss_dssim_hands
+        # hand_image = data.hand_image.cuda()
+        hand_mask = data.hand_mask.cuda()
+
+        # maybe here use hand_mask
+        # if (iteration > 2000): 
+        #     #  randomly use mask
+        #     hand_coeff = 1 + iteration / 10000
+        #     loss += hand_coeff * lambda_l1 * l1_loss(image * hand_mask, gt_image * hand_mask)
 
         # perceptual loss
         lambda_perceptual = C(iteration, config.opt.get('lambda_perceptual', 0.))
