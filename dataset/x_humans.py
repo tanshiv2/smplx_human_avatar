@@ -193,17 +193,21 @@ class X_HumansDataset(Dataset):
                 frame_slice]
             mask_files = \
             sorted(glob.glob(os.path.join(self.root_dir, self.split, self.subject, "render/depth/*.tiff")))[frame_slice]
+            hand_mask_files = sorted(
+                glob.glob(os.path.join(self.root_dir, self.split, self.subject, "render/hand_masks/*.png")))[frame_slice]
             for d_idx, f_idx in enumerate(frames):
                 img_file = img_files[d_idx]
                 mask_file = mask_files[d_idx]
                 model_file = model_files[d_idx]
+                hand_mask_file = hand_mask_files[d_idx]
 
                 self.data.append({
                     'data_idx': d_idx,
                     'frame_idx': f_idx,
                     'img_file': img_file,
                     'mask_file': mask_file,
-                    'model_file': model_file
+                    'model_file': model_file,
+                    'hand_mask_file': hand_mask_file,
                 })
 
         self.frames = frames
@@ -238,6 +242,7 @@ class X_HumansDataset(Dataset):
             frame: i for i, frame in enumerate(frames)
         }
 
+
         self.metadata = {
             'faces': self.faces,
             'posedirs': self.posedirs,
@@ -249,6 +254,7 @@ class X_HumansDataset(Dataset):
             'shapedirs': self.shapedirs,
             'kintree_table': self.kintree_table,
         }
+
         self.metadata.update(cano_data)
         if self.cfg.train_smpl:
             self.metadata.update(self.get_smpl_data())
@@ -369,6 +375,7 @@ class X_HumansDataset(Dataset):
         img_file = data_dict['img_file']
         mask_file = data_dict['mask_file']
         model_file = data_dict['model_file']
+        hand_mask_file = data_dict['hand_mask_file']
 
         K = np.array(self.cameras[data_idx]['K'], dtype=np.float32).copy()
         R = np.array(self.cameras[data_idx]['R'], np.float32)
@@ -379,6 +386,13 @@ class X_HumansDataset(Dataset):
 
         # image = cv2.imread(img_file)
         image = cv2.cvtColor(cv2.imread(img_file), cv2.COLOR_BGR2RGB)
+        hand_mask = cv2.cvtColor(cv2.imread(hand_mask_file), cv2.COLOR_BGR2RGB)
+        bg = np.logical_and(hand_mask[..., 0] == 255,
+                            np.logical_and(hand_mask[..., 1] == 255, hand_mask[..., 2] == 255))
+        hand_mask[bg] = np.array([0, 0, 0])
+        left_hand_mask = hand_mask[..., 2] == 255
+        right_hand_mask = hand_mask[..., 0] == 255
+
         mask = cv2.imread(mask_file, cv2.IMREAD_UNCHANGED)
         # Todo: How is mask used here?
 
@@ -463,6 +477,8 @@ class X_HumansDataset(Dataset):
             FoVy=FovY,
             image=image,
             mask=mask,
+            left_hand_mask=left_hand_mask,
+            right_hand_mask=right_hand_mask,
             gt_alpha_mask=None,
             image_name=f"f{frame_idx if frame_idx >= 0 else -frame_idx - 1:06d}",
             data_device=self.cfg.data_device,
