@@ -18,7 +18,24 @@ import matplotlib.pyplot as plt
 import numpy as np 
 
 
-class Scene:
+class BaseScene:
+    def __init__(self, cfg, save_dir : str):
+        self.cfg = cfg
+        self.save_dir = save_dir
+        self.train_dataset = load_dataset(cfg.dataset, split='train')
+        self.metadata = self.train_dataset.metadata
+        if cfg.mode == 'train':
+            self.test_dataset = load_dataset(cfg.dataset, split='val')
+        elif cfg.mode == 'test':
+            self.test_dataset = load_dataset(cfg.dataset, split='test')
+        elif cfg.mode == 'predict':
+            self.test_dataset = load_dataset(cfg.dataset, split='predict')
+        else:
+            raise ValueError
+
+
+
+class Scene(BaseScene):
 
     gaussians : GaussianModel
 
@@ -165,3 +182,110 @@ class Scene:
 
 
         
+class Scene_H(BaseScene):
+
+    # gaussians : GaussianModel
+
+    def __init__(self, cfg, gaussians_list, save_dir : str):
+        """b
+        :param path: Path to colmap scene main folder.
+        """
+        self.cfg = cfg
+
+        self.save_dir = save_dir
+        self.gaussians_list = gaussians_list
+        # Gaussians List
+        # 0: body
+        # 1: left wrist, 20
+        # 2: right wrist, 21
+        # 3: left index 1, 22
+        # 4: left index 2
+        # 5: left index 3
+        # 6: left middle 1
+        # 7: left middle 2
+        # 8: left middle 3
+        # 9: left pinky 1
+        # 10: left pinky 2
+        # 11: left pinky 3
+        # 12: left ring 1
+        # 13: left ring 2
+        # 14: left ring 3
+        # 15: left thumb 1
+        # 16: left thumb 2
+        # 17: left thumb 3
+        # 18: right index 1
+        # 19: right index 2
+        # 20: right index 3
+        # 21: right middle 1
+        # 22: right middle 2
+        # 23: right middle 3
+        # 24: right pinky 1
+        # 25: right pinky 2
+        # 26: right pinky 3
+        # 27: right ring 1
+        # 28: right ring 2
+        # 29: right ring 3
+        # 30: right thumb 1
+        # 31: right thumb 2
+        # 32: right thumb 3
+
+        self.train_dataset = load_dataset(cfg.dataset, split='train')
+        self.metadata = self.train_dataset.metadata
+        if cfg.mode == 'train':
+            self.test_dataset = load_dataset(cfg.dataset, split='val')
+        elif cfg.mode == 'test':
+            self.test_dataset = load_dataset(cfg.dataset, split='test')
+        elif cfg.mode == 'predict':
+            self.test_dataset = load_dataset(cfg.dataset, split='predict')
+        else:
+            raise ValueError
+
+        self.cameras_extent = self.metadata['cameras_extent']
+        self.gaussians_list[0].create_from_pcd(self.test_dataset.readPointCloud_body(), spatial_lr_scale=self.cameras_extent)
+        for i in range(0, 32):
+            self.gaussians_list[i+1].create_from_pcd(self.test_dataset.readPointCloud_hand(i), spatial_lr_scale=self.cameras_extent)
+
+
+
+        self.converter = GaussianConverter(cfg, self.metadata).cuda()
+
+        self.model_type = 'smpl' # hard-coded model type, used for skinning weights visualization
+        self.save_skinning = False
+        if self.model_type == 'smplx':
+            num_joints = 55 # assuming on smplx model
+            self.joint_colors = plt.cm.get_cmap('tab20')(np.linspace(0, 1, 20))
+            self.joint_colors = np.vstack((self.joint_colors, plt.cm.get_cmap('tab20b')(np.linspace(0, 1, 20))))
+            self.joint_colors = np.vstack((self.joint_colors, plt.cm.get_cmap('tab20c')(np.linspace(0, 1, 15))))
+            self.joint_colors = self.joint_colors[:,:3]
+        elif self.model_type == 'smpl':
+            num_joints = 25
+            self.joint_colors = plt.cm.get_cmap('tab20')(np.linspace(0, 1, 20))
+            self.joint_colors = np.vstack((self.joint_colors, plt.cm.get_cmap('tab20b')(np.linspace(0, 1, 5))))
+            self.joint_colors = self.joint_colors[:,:3]
+
+
+    def train(self):
+        self.converter.train()
+
+    def eval(self):
+        self.converter.eval()
+
+    def optimize(self, iteration):
+        gaussians_delay = self.cfg.model.gaussian.get('delay', 0)
+        if iteration >= gaussians_delay:
+            self.gaussians.optimizer.step()
+        self.gaussians.optimizer.zero_grad(set_to_none=True)
+        self.converter.optimize()
+
+        if self.save_skinning:
+            # save the xyzrgb point cloud for visualization if required
+            interval = 100
+            if iteration % interval == 0:
+                self.vzy_skinning(iteration)
+
+    def convert_gaussians(self, viewpoint_camera, iteration, compute_loss=True):
+        # return self.converter(self.gaussians, viewpoint_camera, iteration, compute_loss)
+        converter_list = []
+        for i in range(34):
+            converter_list.append(self.converter(self.gaussians_list[i], viewpoint_camera, iteration, compute_loss))
+        return converter_list

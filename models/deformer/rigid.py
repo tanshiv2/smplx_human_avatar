@@ -217,7 +217,8 @@ class SkinningField(RigidDeform):
         self.skinning_weights_tensor = torch.from_numpy(metadata["skinning_weights"]).float().cuda()
         
         
-        self.aabb = metadata["aabb"]
+        self.aabb = metadata["aabb"].clone()
+        self.original_aabb = metadata["aabb"].clone()
         # self.faces = np.load('body_models/misc/faces.npz')['faces']
         self.faces = metadata['faces']
         self.cano_mesh = metadata["cano_mesh"]
@@ -324,7 +325,8 @@ class SkinningField(RigidDeform):
 
     def get_skinning_loss(self):
         pts_skinning, sampled_weights = self.sample_skinning_loss()
-        pts_skinning = self.aabb.normalize(pts_skinning, sym=True)
+        # pts_skinning = self.aabb.normalize(pts_skinning, sym=True)
+        pts_skinning = self.original_aabb.normalize(pts_skinning, sym=True)
         knn_weight = self.query_weights(pts_skinning)
 
         if self.distill:

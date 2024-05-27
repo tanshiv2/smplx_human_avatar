@@ -93,7 +93,7 @@ def training(config):
         if iteration % 1000 == 0:
             gaussians.oneupSHdegree()
             # track the number of gaussians
-            print(gaussians.get_xyz.shape)
+            # print(gaussians.get_xyz.shape)
 
         # Pick a random data point
         if not data_stack:

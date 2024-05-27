@@ -260,6 +260,8 @@ class X_HumansDataset(Dataset):
             To get a consistent canonical space,
             we do not add pose blend shape
         '''
+        cano_mesh_hands = []
+        hand2cano_dicts = []
         # compute scale from SMPL body
         gender = self.gender
 
@@ -302,10 +304,10 @@ class X_HumansDataset(Dataset):
 
         left_wrist_idx = 20
         right_wrist_idx = 21
-        finger_start_idx = 25
+        finger_start_idx = 22
         finger_end_idx = 54
-        weights_tensor = torch.tensor(skinning_weights).cpu()
-        faces_tensor = torch.tensor(self.faces).cpu()
+        weights_tensor = torch.tensor(skinning_weights).cpu().clone()
+        faces_tensor = torch.tensor(self.faces).cpu().clone()
         max_joint_indices = torch.argmax(weights_tensor, dim=1)       #corresponding joint index for each vertex
         hand_vertices_idx = torch.nonzero((max_joint_indices >= finger_start_idx) & (max_joint_indices <= finger_end_idx) | (max_joint_indices == left_wrist_idx) | (max_joint_indices == right_wrist_idx)).squeeze()
         vertex_matches = torch.eq(faces_tensor.unsqueeze(2), hand_vertices_idx.view(1, 1, -1))
@@ -317,6 +319,26 @@ class X_HumansDataset(Dataset):
         cano_hand_mesh = trimesh.Trimesh(vertices=vertices.astype(np.float32), faces=faces_tensor[hand_meshes_idx])
         hand2cano_dict = hand_vertices_idx
 
+        # derive a sub-mesh of body
+        body_vertices_idx = torch.nonzero((max_joint_indices < finger_start_idx) | (max_joint_indices > finger_end_idx)).squeeze()
+        vertex_matches = torch.eq(faces_tensor.unsqueeze(2), body_vertices_idx.view(1, 1, -1))
+        num_matches_per_vertex = torch.sum(vertex_matches, dim=2)
+        num_occurrences_per_row = torch.sum(num_matches_per_vertex, dim=1)
+        body_meshes_idx = torch.nonzero(num_occurrences_per_row >= 3).squeeze() #faces containing body vertices
+        cano_mesh_body = trimesh.Trimesh(vertices=vertices.astype(np.float32), faces=faces_tensor[body_meshes_idx])
+        body2cano_dict = body_vertices_idx
+
+        # derive submeshes of left and right hands
+        for idx in range(20, 55):
+            hand_vertices_idx = torch.nonzero(max_joint_indices == idx).squeeze()
+            vertex_matches = torch.eq(faces_tensor.unsqueeze(2), hand_vertices_idx.view(1, 1, -1))
+            num_matches_per_vertex = torch.sum(vertex_matches, dim=2)
+            num_occurrences_per_row = torch.sum(num_matches_per_vertex, dim=1)
+            hand_meshes_idx = torch.nonzero(num_occurrences_per_row >= 3).squeeze() #faces containing hand vertices
+            cano_mesh_hand = trimesh.Trimesh(vertices=vertices.astype(np.float32), faces=faces_tensor[hand_meshes_idx])
+            cano_mesh_hands.append(cano_mesh_hand)
+            hand2cano_dict = hand_vertices_idx
+            hand2cano_dicts.append(hand2cano_dict)
         # # check if hand_verts and vertices in hand_meshes_idx are the same
         # hand_verts_matches = np.allclose(hand_verts, cano_hand_mesh.vertices)
         # print(f"Hand verts and cano hand mesh vertices match: {hand_verts_matches}")
@@ -333,9 +355,14 @@ class X_HumansDataset(Dataset):
             'coord_min': coord_min,
             'coord_max': coord_max,
             'aabb': AABB(coord_max, coord_min),
+            'original_aabb': AABB(coord_max, coord_min),
             'cano_hand_mesh': cano_hand_mesh,
             'hand_meshes_idx': hand_meshes_idx,
             'hand2cano_dict': hand2cano_dict,
+            'cano_mesh_body': cano_mesh_body,
+            'body2cano_dict': body2cano_dict,
+            'cano_mesh_hands': cano_mesh_hands,
+            'hand2cano_dicts': hand2cano_dicts,
         }
 
     def get_smpl_data(self):
@@ -537,6 +564,75 @@ class X_HumansDataset(Dataset):
                     storePly(ply_path, xyz, rgb)
 
                     pcd = fetchPly(ply_path)
+
+        return pcd
+
+    # read the point cloud, containing only points from the body
+    def readPointCloud_body(self, ):
+            if self.cfg.get('random_init', False):
+                ply_path = os.path.join(self.root_dir, self.subject, 'random_pc.ply')
+
+                aabb = self.metadata['aabb']
+                coord_min = aabb.coord_min.unsqueeze(0).numpy()
+                coord_max = aabb.coord_max.unsqueeze(0).numpy()
+                n_points = 50_000
+
+                xyz_norm = np.random.rand(n_points, 3)
+                xyz = xyz_norm * coord_min + (1. - xyz_norm) * coord_max
+                rgb = np.ones_like(xyz) * 255
+                storePly(ply_path, xyz, rgb)
+
+                pcd = fetchPly(ply_path)
+            else:
+                if self.model_type == 'smpl':
+                    ply_path = os.path.join(self.root_dir, 'cano_smpl_body.ply')
+                elif self.model_type == 'smplx':
+                    ply_path = os.path.join(self.root_dir, 'cano_smplx_body.ply')
+                try:
+                    pcd = fetchPly(ply_path)
+                except:
+                    cano_mesh = self.metadata['cano_mesh_body']
+                    n_points_cano = 50000
+                    xyz = cano_mesh.sample(n_points_cano)
+                    rgb = np.ones_like(xyz) * 255
+                    storePly(ply_path, xyz, rgb)
+                    pcd = fetchPly(ply_path)
+
+
+            return pcd
+
+
+    # read the point cloud, containing only points from the body
+def readPointCloud_hand(self, idx):
+        if self.cfg.get('random_init', False):
+            ply_path = os.path.join(self.root_dir, self.subject, 'random_pc.ply')
+
+            aabb = self.metadata['aabb']
+            coord_min = aabb.coord_min.unsqueeze(0).numpy()
+            coord_max = aabb.coord_max.unsqueeze(0).numpy()
+            n_points = 50_000
+
+            xyz_norm = np.random.rand(n_points, 3)
+            xyz = xyz_norm * coord_min + (1. - xyz_norm) * coord_max
+            rgb = np.ones_like(xyz) * 255
+            storePly(ply_path, xyz, rgb)
+
+            pcd = fetchPly(ply_path)
+        else:
+            if self.model_type == 'smpl':
+                ply_path = os.path.join(self.root_dir, f'cano_smpl_hand_{idx}.ply')
+            elif self.model_type == 'smplx':
+                ply_path = os.path.join(self.root_dir, f'cano_smplx_hand_{idx}.ply')
+            try:
+                pcd = fetchPly(ply_path)
+            except:
+                cano_mesh_list = self.metadata['cano_mesh_hands']
+                cano_mesh = cano_mesh_list[idx]
+                n_points_cano = 15
+                xyz = cano_mesh.sample(n_points_cano)
+                rgb = np.ones_like(xyz) * 255
+                storePly(ply_path, xyz, rgb)
+                pcd = fetchPly(ply_path)
 
         return pcd
 

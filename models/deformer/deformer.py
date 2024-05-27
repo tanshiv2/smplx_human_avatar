@@ -22,7 +22,7 @@ class Deformer(nn.Module):
 
         # get the joint weights of each points
         # gaussians.set_xyz_J(self.rigid.get_xyz_J(deformed_gaussians))
-        if (iteration in [100, 2100,  6100,10100]):
+        if (iteration in [100, 2100,  3100, 4100]):
             # import ipdb; ipdb.set_trace()
             gaussians.save_ply(f"point_cloud/gaussian_{iteration}.ply")
             deformed_gaussians.save_ply(f"point_cloud/deformed_gaussian_{iteration}.ply")
