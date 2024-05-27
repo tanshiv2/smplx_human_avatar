@@ -329,7 +329,6 @@ def validation(iteration, testing_iterations, testing_interval, scene : Scene, e
                 gt_image = torch.clamp(data.original_image.to("cuda"), 0.0, 1.0)
                 opacity_image = torch.clamp(render_pkg["opacity_render"], 0.0, 1.0)
 
-
                 wandb_img = wandb.Image(opacity_image[None],
                                         caption=config['name'] + "_view_{}/render_opacity".format(data.image_name))
                 examples.append(wandb_img)
@@ -346,8 +345,12 @@ def validation(iteration, testing_iterations, testing_interval, scene : Scene, e
                 lpips_test += metrics_test["lpips"]
 
                 hands_mask = torch.clamp(render_pkg["left_hand_mask"] + render_pkg["right_hand_mask"], 0.0, 1.0)
+                wandb_img = wandb.Image(hands_mask[None], caption=config['name'] + "_view_{}/render_hands_mask".format(data.image_name))
+                examples.append(wandb_img)
                 image_hands = torch.where(hands_mask != 0, image, torch.zeros_like(image))
                 gt_hands_mask = torch.Tensor(data.left_hand_mask + data.right_hand_mask).to(hands_mask.device)
+                wandb_img = wandb.Image(gt_hands_mask[None, None], caption=config['name'] + "_view_{}/gt_hands_mask".format(data.image_name))
+                examples.append(wandb_img)
                 gt_image_hands = torch.where(gt_hands_mask != 0, gt_image, torch.zeros_like(gt_image))
                 l1_hands_test += l1_loss(image_hands, gt_image_hands).mean().double()
                 metrics_test = evaluator(image_hands, gt_image_hands)
