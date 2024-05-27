@@ -472,7 +472,7 @@ class GaussianModel:
 
     def extract_hand_points(self):
         # hands joints index
-        hand_J = range(25, 55)
+        hand_J = list(range(25, 55)) + [20, 21]
         # may not be the same as get_xyz_J since it has already been cloned
         n_init_points = self.get_xyz.shape[0]
         hand_points_mask = torch.zeros(n_init_points, dtype=bool, device="cuda")
