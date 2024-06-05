@@ -68,7 +68,7 @@ class X_HumansDataset(Dataset):
             self.posedirs = dict(np.load('body_models/misc/posedirs_all_smplx.npz'))
             self.J_regressor = dict(np.load('body_models/misc/J_regressors_smplx.npz'))
             # shape of [batch_size, beta_num]
-            # self.betas = np.load(os.path.join(self.root_dir, "mean_shape_smplx.npy"))[None, :]
+            self.betas = np.load(os.path.join(self.root_dir, "mean_shape_smplx.npy"))
 
             self.v_templates = np.load('body_models/misc/v_templates_smplx.npz')
             self.shapedirs = dict(np.load('body_models/misc/shapedirs_all_smplx.npz'))
@@ -254,6 +254,7 @@ class X_HumansDataset(Dataset):
             'J_regressor': self.J_regressor,
             'cameras_extent': 3.469298553466797,
             # hardcoded, used to scale the threshold for scaling/image-space gradient
+            # the larger, the less points pruned 
             'frame_dict': frame_dict,
             'v_templates': self.v_templates,
             'shapedirs': self.shapedirs,
@@ -270,6 +271,7 @@ class X_HumansDataset(Dataset):
             To get a consistent canonical space,
             we do not add pose blend shape
         '''
+        # shape_offset = self.shapedirs[self.gender][..., :10] @ self.betas
         # compute scale from SMPL body
         gender = self.gender
 
@@ -283,6 +285,8 @@ class X_HumansDataset(Dataset):
             minimal_shape += 1e-4 * np.random.randn(*minimal_shape.shape)
         else:
             minimal_shape = minimal_shape.astype(np.float32)
+
+        # minimal_shape += shape_offset
 
         # Minimally clothed shape
         J_regressor = self.J_regressor[gender]
@@ -402,7 +406,6 @@ class X_HumansDataset(Dataset):
         # hand_mask = cv2.cvtColor(cv2.imread(hand_mask_file), cv2.COLOR_BGR2RGB)
         
 
-
         mask = cv2.imread(mask_file, cv2.IMREAD_UNCHANGED)
         # only [255, 0, 0] and [0,  255, 0] are hand
         hand_mask = cv2.imread(hand_mask_file, cv2.IMREAD_UNCHANGED)
@@ -433,8 +436,8 @@ class X_HumansDataset(Dataset):
         image = torch.from_numpy(image).permute(2, 0, 1).float()
         mask = torch.from_numpy(mask).unsqueeze(0).float()
         hand_mask = torch.from_numpy(hand_mask).unsqueeze(0).float()
-        left_hand_mask = torch.from_numpy(left_hand_mask).unsqueeze(0).float()
-        right_hand_mask = torch.from_numpy(right_hand_mask).unsqueeze(0).float()
+        # left_hand_mask = torch.from_numpy(left_hand_mask).unsqueeze(0).float()
+        # right_hand_mask = torch.from_numpy(right_hand_mask).unsqueeze(0).float()
 
         # update camera parameters
         K[0, :] *= self.w / self.W

@@ -129,7 +129,7 @@ def training(config):
         # Here we can ignore the loss_dssim, since lambda_dssim is set to 0
         loss = lambda_l1 * loss_l1 + lambda_dssim * loss_dssim
 
-        lambda_l1_hands = C(iteration, config.opt.get('lambda_l1_hands', 0.))
+        lambda_l1_hands = C(iteration, config.opt.get('lambda_l1_hands', 1.))
         lambda_dssim_hands = C(iteration, config.opt.get('lambda_dssim_hands', 0.))
 
         left_hand_mask = render_pkg["left_hand_mask"]
@@ -143,20 +143,25 @@ def training(config):
         loss_l1_hands = torch.tensor(0.).cuda()
         loss_dssim_hands = torch.tensor(0.).cuda()
 
-        # Calculate L1 loss based on the hand masks
-        if lambda_l1_hands > 0. or lambda_dssim_hands > 0.:
-            gt_left_hand_img = torch.where(gt_left_hand_mask != 0, gt_image, torch.zeros_like(gt_image))
-            gt_right_hand_img = torch.where(gt_right_hand_mask != 0, gt_image, torch.zeros_like(gt_image))
-            left_hand_img = torch.where(left_hand_mask != 0, image, torch.zeros_like(image))
-            right_hand_img = torch.where(right_hand_mask != 0, image, torch.zeros_like(image))
-            if lambda_l1_hands > 0.:
-                loss_l1_hands += (l1_loss(left_hand_img, gt_left_hand_img) + l1_loss(right_hand_img, gt_right_hand_img)) / 2
-            if lambda_dssim_hands > 0.:
-                loss_dssim_hands += (1.0 - ssim(left_hand_img, gt_left_hand_img) + 1.0 - ssim(right_hand_img, gt_right_hand_img)) / 2
+        # if (iteration > 4000):
+        #     # Calculate L1 loss based on the hand masks
+        #     if lambda_l1_hands > 0. or lambda_dssim_hands > 0.:
+        #         # gt_left_hand_img = torch.where(gt_left_hand_mask != 0, gt_image, torch.zeros_like(gt_image))
+        #         gt_left_hand_img = gt_left_hand_mask * gt_image
+        #         gt_right_hand_img = gt_right_hand_mask * gt_image
+        #         # gt_right_hand_img = torch.where(gt_right_hand_mask != 0, gt_image, torch.zeros_like(gt_image))
+        #         # left_hand_img = torch.where(left_hand_mask != 0, image, torch.zeros_like(image))
+        #         left_hand_img = left_hand_mask * image
+        #         # right_hand_img = torch.where(right_hand_mask != 0, image, torch.zeros_like(image))
+        #         right_hand_img = right_hand_mask * image
+        #         if lambda_l1_hands > 0.:
+        #             loss_l1_hands += (l1_loss(left_hand_img, gt_left_hand_img) + l1_loss(right_hand_img, gt_right_hand_img)) / 2
+        #         if lambda_dssim_hands > 0.:
+        #             loss_dssim_hands += (1.0 - ssim(left_hand_img, gt_left_hand_img) + 1.0 - ssim(right_hand_img, gt_right_hand_img)) / 2
 
         loss += lambda_l1_hands * loss_l1_hands + lambda_dssim_hands * loss_dssim_hands
-        # hand_image = data.hand_image.cuda()
-        hand_mask = data.hand_mask.cuda()
+
+        # hand_mask = data.hand_mask.cuda()
 
         # maybe here use hand_mask
         # if (iteration > 2000): 
@@ -216,6 +221,8 @@ def training(config):
             loss_mask_hands /= 2
         else:
             raise ValueError
+        hand_mask_coeff = 1. + iteration / 10000   
+        loss_mask_hands *= hand_mask_coeff     
         loss += lambda_mask_hands * loss_mask_hands
 
         # skinning loss
