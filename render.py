@@ -79,7 +79,7 @@ def test(config):
         scene.eval()
         load_ckpt = config.get('load_ckpt', None)
         if load_ckpt is None:
-            load_ckpt = os.path.join(scene.save_dir, "ckpt" + str(config.opt.iterations) + ".pth")
+            load_ckpt = os.path.join(scene.save_dir, "ckpt" + str("30000") + ".pth")
         scene.load_checkpoint(load_ckpt)
 
         bg_color = [1, 1, 1] if config.dataset.white_background else [0, 0, 0]

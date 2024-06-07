@@ -27,19 +27,6 @@ class Identity(RigidDeform):
         super().__init__(cfg)
 
     def forward(self, gaussians, iteration, camera):
-        tfs = camera.bone_transforms
-        # global translation
-        trans = tfs[:, :3, 3].mean(0)        
-        
-
-        deformed_gaussians = gaussians.clone()
-        T_fwd = torch.eye(4, device=gaussians.get_xyz.device).unsqueeze(0).expand(gaussians.get_xyz.shape[0], -1, -1)
-        T_fwd = T_fwd.clone()
-        T_fwd[:, :3, 3] += + trans.reshape(1, 3)  # add global offset
-
-        xyz = gaussians.get_xyz
-        n_pts = xyz.shape[0]
-
         # get forward transform by weight * bone_transforms for each Gaussian point
         homo_coord = torch.ones(n_pts, 1, dtype=torch.float32, device=xyz.device)
         x_hat_homo = torch.cat([xyz, homo_coord], dim=-1).view(n_pts, 4, 1)

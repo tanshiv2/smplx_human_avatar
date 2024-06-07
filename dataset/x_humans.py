@@ -27,12 +27,13 @@ class X_HumansDataset(Dataset):
         # Take1
         if split == 'train':
             self.subject = cfg.get('train_subject', 'Take1')
-        else:
-            # val test predict all group to test
-            # change here
+        elif split == 'val':
             # split = "train"
             split = "test"
-            self.subject = cfg.get('test_subject', 'Take8')
+            self.subject = cfg.get('val_subject', 'Take8')
+        else:
+            split = "test"
+            self.subject = cfg.get('test_subject', 'Take10')
         self.split = split
 
         # keep the same?
