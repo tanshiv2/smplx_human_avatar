@@ -71,7 +71,7 @@ class X_HumansDataset(Dataset):
             self.posedirs = dict(np.load('body_models/misc/posedirs_all_smplx.npz'))
             self.J_regressor = dict(np.load('body_models/misc/J_regressors_smplx.npz'))
             # shape of [batch_size, beta_num]
-            # self.betas = np.load(os.path.join(self.root_dir, "mean_shape_smplx.npy"))[None, :]
+            self.betas = np.load(os.path.join(self.root_dir, "mean_shape_smplx.npy"))
 
             self.v_templates = np.load('body_models/misc/v_templates_smplx.npz')
             self.shapedirs = dict(np.load('body_models/misc/shapedirs_all_smplx.npz'))
@@ -148,9 +148,13 @@ class X_HumansDataset(Dataset):
             # frames = frames[frame_slice]
             else:
                 if self.model_type == 'smpl':
+                    hand_mask_files = []
                     model_files_take = sorted(
                         glob.glob(os.path.join(self.root_dir, self.split, take, 'SMPL_processed/*.npz')))
                 elif self.model_type == 'smplx':
+                    hand_mask_files = sorted(
+                        glob.glob(os.path.join(self.root_dir, self.split, self.subject, 'render/hand_masks/*.png'))
+                    )
                     model_files_take = sorted(
                         glob.glob(os.path.join(self.root_dir, self.split, take, 'SMPLX_processed/*.npz')))
                 # something as [000000.npz, 000001.npz,...,]
@@ -247,17 +251,20 @@ class X_HumansDataset(Dataset):
             frame: i for i, frame in enumerate(frames)
         }
 
+
         self.metadata = {
             'faces': self.faces,
             'posedirs': self.posedirs,
             'J_regressor': self.J_regressor,
             'cameras_extent': 3.469298553466797,
             # hardcoded, used to scale the threshold for scaling/image-space gradient
+            # the larger, the less points pruned 
             'frame_dict': frame_dict,
             'v_templates': self.v_templates,
             'shapedirs': self.shapedirs,
             'kintree_table': self.kintree_table,
         }
+
         self.metadata.update(cano_data)
         if self.cfg.train_smpl:
             self.metadata.update(self.get_smpl_data())
@@ -269,6 +276,7 @@ class X_HumansDataset(Dataset):
             To get a consistent canonical space,
             we do not add pose blend shape
         '''
+        # shape_offset = self.shapedirs[self.gender][..., :10] @ self.betas
         # compute scale from SMPL body
         gender = self.gender
 
@@ -282,6 +290,8 @@ class X_HumansDataset(Dataset):
             minimal_shape += 1e-4 * np.random.randn(*minimal_shape.shape)
         else:
             minimal_shape = minimal_shape.astype(np.float32)
+
+        # minimal_shape += shape_offset
 
         # Minimally clothed shape
         J_regressor = self.J_regressor[gender]
@@ -306,6 +316,30 @@ class X_HumansDataset(Dataset):
         coord_min -= padding
 
         cano_mesh = trimesh.Trimesh(vertices=vertices.astype(np.float32), faces=self.faces)
+
+        # derive a sub-mesh of hands
+
+        left_wrist_idx = 20
+        right_wrist_idx = 21
+        finger_start_idx = 25
+        finger_end_idx = 54
+        weights_tensor = torch.tensor(skinning_weights).cpu()
+        faces_tensor = torch.tensor(self.faces).cpu()
+        max_joint_indices = torch.argmax(weights_tensor, dim=1)       #corresponding joint index for each vertex
+        hand_vertices_idx = torch.nonzero((max_joint_indices >= finger_start_idx) & (max_joint_indices <= finger_end_idx) | (max_joint_indices == left_wrist_idx) | (max_joint_indices == right_wrist_idx)).squeeze()
+        vertex_matches = torch.eq(faces_tensor.unsqueeze(2), hand_vertices_idx.view(1, 1, -1))
+        num_matches_per_vertex = torch.sum(vertex_matches, dim=2)
+        num_occurrences_per_row = torch.sum(num_matches_per_vertex, dim=1)
+        hand_meshes_idx = torch.nonzero(num_occurrences_per_row >= 3).squeeze() #faces containing hand vertices
+        # cano_hand_mesh = trimesh.Trimesh(vertices=vertices.astype(np.float32), faces=self.faces[hand_meshes_idx])
+        hand_verts = vertices[hand_vertices_idx].astype(np.float32)
+        cano_hand_mesh = trimesh.Trimesh(vertices=vertices.astype(np.float32), faces=faces_tensor[hand_meshes_idx])
+        hand2cano_dict = hand_vertices_idx
+
+        # # check if hand_verts and vertices in hand_meshes_idx are the same
+        # hand_verts_matches = np.allclose(hand_verts, cano_hand_mesh.vertices)
+        # print(f"Hand verts and cano hand mesh vertices match: {hand_verts_matches}")
+
         return {
             'gender': gender,
             'smpl_verts': vertices.astype(np.float32),
@@ -318,6 +352,9 @@ class X_HumansDataset(Dataset):
             'coord_min': coord_min,
             'coord_max': coord_max,
             'aabb': AABB(coord_max, coord_min),
+            'cano_hand_mesh': cano_hand_mesh,
+            'hand_meshes_idx': hand_meshes_idx,
+            'hand2cano_dict': hand2cano_dict,
         }
 
     def get_smpl_data(self):
@@ -360,6 +397,7 @@ class X_HumansDataset(Dataset):
         img_file = data_dict['img_file']
         mask_file = data_dict['mask_file']
         model_file = data_dict['model_file']
+        hand_mask_file = data_dict['hand_mask_file']
 
         # import ipdb; ipdb.set_trace()
 
@@ -372,7 +410,13 @@ class X_HumansDataset(Dataset):
 
         # image = cv2.imread(img_file)
         image = cv2.cvtColor(cv2.imread(img_file), cv2.COLOR_BGR2RGB)
+        # hand_mask = cv2.cvtColor(cv2.imread(hand_mask_file), cv2.COLOR_BGR2RGB)
+        
+
         mask = cv2.imread(mask_file, cv2.IMREAD_UNCHANGED)
+        # only [255, 0, 0] and [0,  255, 0] are hand
+        hand_mask = cv2.imread(hand_mask_file, cv2.IMREAD_UNCHANGED)
+        # hand_mask = cv2.imread(hand_mask_file, cv2.IMREAD_UNCHANGED).sum(-1) if hand_mask_file is not None else np.ones_like(mask) * 255
         # Todo: How is mask used here?
 
         lanczos = self.cfg.get('lanczos', False)
@@ -380,13 +424,27 @@ class X_HumansDataset(Dataset):
 
         image = cv2.resize(image, (self.w, self.h), interpolation=interpolation)
         mask = cv2.resize(mask, (self.w, self.h), interpolation=cv2.INTER_NEAREST)
+        hand_mask = cv2.resize(hand_mask, (self.w, self.h), interpolation=cv2.INTER_NEAREST)
 
+        # hand_mask = hand_mask == 255
+
+        bg = np.logical_and(hand_mask[..., 0] == 255,
+                            np.logical_and(hand_mask[..., 1] == 255, hand_mask[..., 2] == 255))
+        hand_mask[bg] = np.array([0, 0, 0])
+        left_hand_mask = hand_mask[..., 2] == 255
+        right_hand_mask = hand_mask[..., 0] == 255
+
+        # maybe also change the mask
+        # mask = hand_mask == 255 * 3      
         mask = mask != mask.max()
         image[~mask] = 255. if self.white_bg else 0.
         image = image / 255.
 
         image = torch.from_numpy(image).permute(2, 0, 1).float()
         mask = torch.from_numpy(mask).unsqueeze(0).float()
+        hand_mask = torch.from_numpy(hand_mask).unsqueeze(0).float()
+        # left_hand_mask = torch.from_numpy(left_hand_mask).unsqueeze(0).float()
+        # right_hand_mask = torch.from_numpy(right_hand_mask).unsqueeze(0).float()
 
         # update camera parameters
         K[0, :] *= self.w / self.W
@@ -456,6 +514,10 @@ class X_HumansDataset(Dataset):
             FoVy=FovY,
             image=image,
             mask=mask,
+            left_hand_mask=left_hand_mask,
+            right_hand_mask=right_hand_mask,
+            # hand_image = hand_image,
+            hand_mask=hand_mask,
             gt_alpha_mask=None,
             image_name=f"f{frame_idx if frame_idx >= 0 else -frame_idx - 1:06d}",
             data_device=self.cfg.data_device,

@@ -19,8 +19,11 @@ class NonRigidDeform(nn.Module):
 class Identity(NonRigidDeform):
     def __init__(self, cfg, metadata):
         super().__init__(cfg)
+        self.feature_dim = cfg.get('feature_dim', 0)
 
     def forward(self, gaussians, iteration, camera, compute_loss=True):
+        setattr(gaussians, "non_rigid_feature",
+                torch.zeros(gaussians.get_xyz.shape[0], self.feature_dim).cuda())
         return gaussians, {}
 
 class MLP(NonRigidDeform):

@@ -6,14 +6,15 @@ model:
   deformer:
     rigid:
     # same network different parameters
-      name: skinning_field
+      name: skinning_field_smplx
 
+      lambda_knn_res: 0.0
       distill: false
       res: 64
       z_ratio: 4
       d_out: 59
       soft_blend: 20
-      n_reg_pts: 1024
+      n_reg_pts: 2048
       skinning_network:
         otype: VanillaMLP
         n_neurons: 128

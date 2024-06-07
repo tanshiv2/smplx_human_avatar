@@ -1,14 +1,14 @@
 # @package _global_
 
-dataset_name: xh_00036_smpl
+dataset_name: xh_00036_smplx
 
 dataset:
   name: x_humans
   root_dir: "../../data/X_Humans/00036"
 
-  train_subject: Take1
+  train_subject: Take6
   test_subject: Take10
-  model_type: smpl
+  model_type: smplx
   train_frames: [ 0, 145, 1 ]
   val_frames: [ 0, 145, 1 ]
   test_frames:

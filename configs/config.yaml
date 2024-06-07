@@ -60,18 +60,23 @@ opt:
   rotation_lr: 0.001
 
   pose_correction_lr: 1e-4
-  # rigid_lr: 1e-4
-  rigid_lr: 1e-3
+  rigid_lr: 1e-4
+  # rigid_lr: 1e-3
   non_rigid_lr: 1e-3
   lr_ratio: 0.01
 
   # loss weights
-  lambda_l1: 1.
+  lambda_l1: 1.0
   lambda_dssim: 0.
+  lambda_l1_hands: 0.5
+  # lambda_l1_hands: 0.
+  lambda_dssim_hands: 0.
   lambda_perceptual: 1e-2
   mask_loss_type: l1
+  # mask_loss_type: bce
 #  lambda_mask: [0.1,5000,0]
   lambda_mask: 0.1
+  lambda_mask_hands: 0.05
   lambda_opacity: 0.
   lambda_skinning: [10,1000,0.1]
   lambda_pose: 0.
@@ -85,6 +90,7 @@ opt:
   densify_from_iter: 500
   densify_until_iter: 45000
   densify_grad_threshold: 0.0002
+  # opacity_threshold: 0.05
   opacity_threshold: 0.05
 
   # percent_dense: 0.01
@@ -105,10 +111,10 @@ pipeline:
 debug_from: -1
 detect_anomaly: false
 test_iterations: []
-test_interval: 100
-save_iterations: [30000]
+test_interval: 1000
+save_iterations: [10000]
 seed: -1
-checkpoint_iterations: []
+checkpoint_iterations: [10000]
 start_checkpoint: null
 wandb_disable: false
 

@@ -187,6 +187,10 @@ class DirectPoseOptimization(PoseCorrection):
 
         root_orient = metadata['root_orient']
         pose_body = metadata['pose_body']
+
+        if ('pose_jaw' in metadata.keys()):
+            pose_body = np.concatenate([pose_body, metadata['pose_jaw'], metadata['pose_eye']], axis=-1)
+
         pose_hand = metadata['pose_hand']
         trans = metadata['trans']
         full_betas = metadata['betas']

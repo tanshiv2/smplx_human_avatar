@@ -100,3 +100,7 @@ class AABB(torch.nn.Module):
 
     def scale(self):
         return math.sqrt((self.volume_scale() ** 2).sum() / 3.)
+
+    def update(self, coord_max, coord_min):
+        self.coord_max = torch.from_numpy(coord_max).float().type_as(self.coord_max)
+        self.coord_min = torch.from_numpy(coord_min).float().type_as(self.coord_min)
