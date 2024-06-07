@@ -27,14 +27,7 @@ class Identity(RigidDeform):
         super().__init__(cfg)
 
     def forward(self, gaussians, iteration, camera):
-        # get forward transform by weight * bone_transforms for each Gaussian point
-        homo_coord = torch.ones(n_pts, 1, dtype=torch.float32, device=xyz.device)
-        x_hat_homo = torch.cat([xyz, homo_coord], dim=-1).view(n_pts, 4, 1)
-        x_bar = torch.matmul(T_fwd, x_hat_homo)[:, :3, 0]
-        deformed_gaussians._xyz = x_bar
-
-        deformed_gaussians.set_fwd_transform(T_fwd.detach())
-        return deformed_gaussians
+        return gaussians
 
     def regularization(self):
         return {}
@@ -44,6 +37,9 @@ class SMPLNN(RigidDeform):
         super().__init__(cfg)
         self.smpl_verts = torch.from_numpy(metadata["smpl_verts"]).float().cuda()
         self.skinning_weights = torch.from_numpy(metadata["skinning_weights"]).float().cuda()
+
+        self.smpl_verts_tensor = torch.from_numpy(metadata["smpl_verts"]).float().cuda()
+        self.skinning_weights_tensor = torch.from_numpy(metadata["skinning_weights"]).float().cuda()
 
     def query_weights(self, xyz):
         # find the nearest vertex
@@ -185,25 +181,23 @@ def hierarchical_softmax(x):
         prob_all[:, [42, 45, 48, 51, 54]] = prob_all[:, [41, 44, 47, 50, 53]] * (sigmoid_x[:, [42, 45, 48, 51, 54]])
         prob_all[:, [41, 44, 47, 50, 53]] = prob_all[:, [41, 44, 47, 50, 53]] * (1 - sigmoid_x[:, [42, 45, 48, 51, 54]])
 
-        # prob_all = prob_all.reshape(n_batch, n_point, prob_all.shape[-1])
+    # prob_all = prob_all.reshape(n_batch, n_point, prob_all.shape[-1])
     return prob_all
 
-# need to change here
 class SkinningField(RigidDeform):
     def __init__(self, cfg, metadata):
         super().__init__(cfg)
         self.smpl_verts = metadata["smpl_verts"]
         self.skinning_weights = metadata["skinning_weights"]
-        
+
         self.smpl_verts_tensor = torch.from_numpy(metadata["smpl_verts"]).float().cuda()
         self.skinning_weights_tensor = torch.from_numpy(metadata["skinning_weights"]).float().cuda()
-        
-        
+    
         self.aabb = metadata["aabb"]
         # self.faces = np.load('body_models/misc/faces.npz')['faces']
         self.faces = metadata['faces']
         self.cano_mesh = metadata["cano_mesh"]
-        
+
         self.distill = cfg.distill
         d, h, w = cfg.res // cfg.z_ratio, cfg.res, cfg.res
         self.resolution = (d, h, w)
@@ -235,6 +229,7 @@ class SkinningField(RigidDeform):
         return pts_W
     
     def get_forward_transform(self, xyz, tfs, knn_weight = None):
+        # knn = None
         if self.distill:
             self.precompute(recompute_skinning=self.training)
             fwd_grid = torch.einsum("bcdhw,bcxy->bxydhw", self.lbs_voxel_final, tfs[None])
@@ -251,7 +246,7 @@ class SkinningField(RigidDeform):
                 pts_W = self.softmax(pts_W)
             # import ipdb; ipdb.set_trace()
             T_fwd = torch.matmul(pts_W, tfs.view(-1, 16)).view(-1, 4, 4).float()
-        return T_fwd
+        return T_fwd, pts_W
 
     def sample_skinning_loss(self):
         points_skinning, face_idx = self.cano_mesh.sample(self.cfg.n_reg_pts, return_index=True)
@@ -283,16 +278,17 @@ class SkinningField(RigidDeform):
 
     def get_skinning_loss(self):
         pts_skinning, sampled_weights = self.sample_skinning_loss()
-        knn_weight = self.query_weights(pts_skinning)
+        # knn_weight = self.query_weights(pts_skinning)
+        knn_weight = None
         pts_skinning = self.aabb.normalize(pts_skinning, sym=True)
 
         if self.distill:
             pred_weights = F.grid_sample(self.lbs_voxel_final, pts_skinning.reshape(1, 1, 1, -1, 3), padding_mode='border')
             pred_weights = pred_weights.reshape(24, -1).permute(1, 0)
         else:
-            pred_weights = 0.8 * knn_weight + 0.2 * self.softmax(self.lbs_network(pts_skinning))
-            # pred_weights = self.lbs_network(pts_skinning)
-            # pred_weights = self.softmax(pred_weights)
+            # pred_weights = 0.8 * knn_weight + 0.2 * self.softmax(self.lbs_network(pts_skinning))
+            pred_weights = self.lbs_network(pts_skinning)
+            pred_weights = self.softmax(pred_weights)
         skinning_loss = torch.nn.functional.mse_loss(
             pred_weights, sampled_weights, reduction='none').sum(-1).mean()
         # breakpoint()
@@ -308,6 +304,7 @@ class SkinningField(RigidDeform):
 
         # KNN
         knn_weights = self.query_weights(xyz)
+        # knn_weights= None
 
         # normalizing position 
         xyz_norm = self.aabb.normalize(xyz, sym=True)
@@ -315,7 +312,7 @@ class SkinningField(RigidDeform):
         # Joint number is 55 
         # 3 -> 55 
         # N*3 -> N*55 -> N*16
-        T_fwd = self.get_forward_transform(xyz_norm, tfs, knn_weights)
+        T_fwd, pts_W = self.get_forward_transform(xyz_norm, tfs, knn_weights)
 
         deformed_gaussians = gaussians.clone()
         deformed_gaussians.set_fwd_transform(T_fwd.detach())
@@ -331,7 +328,8 @@ class SkinningField(RigidDeform):
         # deformed_gaussians._rotation = tf.matrix_to_quaternion(rotation_bar)
         # deformed_gaussians._rotation = rotation_matrix_to_quaternion(rotation_bar)
 
-        return deformed_gaussians
+        # return deformed_gaussians
+        return deformed_gaussians, pts_W
 
     def regularization(self):
         loss_skinning = self.get_skinning_loss()
@@ -345,7 +343,5 @@ def get_rigid_deform(cfg, metadata):
         "identity": Identity,
         "smpl_nn": SMPLNN,
         "skinning_field": SkinningField,
-        "skinning_field_smplx": SkinningField,
-        
     }
     return model_dict[name](cfg, metadata)
