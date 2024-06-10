@@ -153,8 +153,9 @@ class X_HumansDataset(Dataset):
                         glob.glob(os.path.join(self.root_dir, self.split, take, 'SMPL_processed/*.npz')))
                 elif self.model_type == 'smplx':
                     hand_mask_files = sorted(
-                        glob.glob(os.path.join(self.root_dir, self.split, self.subject, 'render/hand_masks/*.png'))
+                        glob.glob(os.path.join(self.root_dir, self.split, take, 'render/hand_masks/*.png'))
                     )
+                    assert(len(hand_mask_files)>0)
                     model_files_take = sorted(
                         glob.glob(os.path.join(self.root_dir, self.split, take, 'SMPLX_processed/*.npz')))
                 # something as [000000.npz, 000001.npz,...,]
@@ -206,18 +207,22 @@ class X_HumansDataset(Dataset):
                     frame_slice]
                 mask_files = \
                 sorted(glob.glob(os.path.join(self.root_dir, self.split, take, "render/depth/*.tiff")))[frame_slice]
+                hand_mask_files = sorted(
+                    glob.glob(os.path.join(self.root_dir, self.split, take, "render/hand_masks/*.png")))[frame_slice]
                 for d_idx, f_idx in enumerate(frames):
                     img_file = img_files[d_idx]
                     mask_file = mask_files[d_idx]
                     # import ipdb; ipdb.set_trace()
                     model_file = self.model_files[len(self.data)]
+                    hand_mask_file = hand_mask_files[d_idx] if len(hand_mask_files) > 0 else None
 
                     self.data.append({
                         'data_idx': len(self.data),
                         'frame_idx': f_idx,
                         'img_file': img_file,
                         'mask_file': mask_file,
-                        'model_file': model_file
+                        'model_file': model_file,
+                        'hand_mask_file': hand_mask_file
                     })
 
         self.frames = frames
@@ -397,9 +402,9 @@ class X_HumansDataset(Dataset):
         img_file = data_dict['img_file']
         mask_file = data_dict['mask_file']
         model_file = data_dict['model_file']
-        hand_mask_file = data_dict['hand_mask_file']
-
         # import ipdb; ipdb.set_trace()
+
+        hand_mask_file = data_dict['hand_mask_file']
 
         K = np.array(self.cameras[data_idx]['K'], dtype=np.float32).copy()
         R = np.array(self.cameras[data_idx]['R'], np.float32)

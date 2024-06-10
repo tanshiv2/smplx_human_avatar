@@ -18,6 +18,7 @@ from os import makedirs
 from gaussian_renderer import render
 import torchvision
 from utils.general_utils import fix_random
+from utils.loss_utils import l1_loss, ssim
 from scene import GaussianModel
 
 from utils.general_utils import Evaluator, PSEvaluator
@@ -92,11 +93,20 @@ def test(config):
         iter_end = torch.cuda.Event(enable_timing=True)
 
         evaluator = PSEvaluator() if config.dataset.name == 'people_snapshot' else Evaluator()
+        # psnrs = []
+        # ssims = []
+        # lpipss = []
+        times = []
 
+        l1s = []
+        l1s_hands = []
         psnrs = []
         ssims = []
         lpipss = []
-        times = []
+        psnrs_hands = []
+        ssims_hand = []
+        lpipss_hands = []
+
         for idx in trange(len(scene.test_dataset), desc="Rendering progress"):
             view = scene.test_dataset[idx]
             iter_start.record()
@@ -125,6 +135,19 @@ def test(config):
                 psnrs.append(metrics['psnr'])
                 ssims.append(metrics['ssim'])
                 lpipss.append(metrics['lpips'])
+                l1s.append(l1_loss(rendering, gt).mean().double())
+
+                # getting the hand loss on rendering
+                hands_mask = torch.clamp(render_pkg["left_hand_mask"] + render_pkg["right_hand_mask"], 0.0, 1.0)
+                image_hands = torch.where(hands_mask != 0, rendering, torch.zeros_like(rendering))
+                gt_hands_mask = torch.Tensor(view.left_hand_mask + view.right_hand_mask).to(hands_mask.device)
+                gt_image_hands = torch.where(gt_hands_mask != 0, gt, torch.zeros_like(gt))
+
+                l1s_hands.append(l1_loss(image_hands, gt_image_hands).mean().double())
+                metrics_hand = evaluator(image_hands, gt_image_hands)
+                psnrs_hands.append(metrics_hand["psnr"])
+                ssims_hand.append(metrics_hand["ssim"])
+                lpipss_hands.append(metrics_hand["lpips"])
             else:
                 psnrs.append(torch.tensor([0.], device='cuda'))
                 ssims.append(torch.tensor([0.], device='cuda'))
@@ -134,15 +157,32 @@ def test(config):
         _psnr = torch.mean(torch.stack(psnrs))
         _ssim = torch.mean(torch.stack(ssims))
         _lpips = torch.mean(torch.stack(lpipss))
+        _l1 = torch.mean(torch.stack(l1s))
+
+        _psnr_hands = torch.mean(torch.stack(psnrs_hands))
+        _ssim_hands = torch.mean(torch.stack(ssims_hand))
+        _lpips_hands = torch.mean(torch.stack(lpipss_hands))
+        _l1_hands = torch.mean(torch.stack(l1s_hands))
+
         _time = np.mean(times[1:])
         wandb.log({'metrics/psnr': _psnr,
                    'metrics/ssim': _ssim,
                    'metrics/lpips': _lpips,
+                   'metrics/l1': _l1,
+                   'metrics/psnr_hands': _psnr_hands,
+                   'metrics/ssim_hands': _ssim_hands,
+                   'metrics/lpips_hands': _lpips_hands,
+                   'metrics/l1_hands': _l1_hands,
                    'metrics/time': _time})
         np.savez(os.path.join(config.exp_dir, config.suffix, 'results.npz'),
                  psnr=_psnr.cpu().numpy(),
                  ssim=_ssim.cpu().numpy(),
                  lpips=_lpips.cpu().numpy(),
+                 l1=_l1.cpu().numpy(),
+                 psnr_hands=_psnr_hands.cpu().numpy(),
+                 ssim_hands=_ssim_hands.cpu().numpy(),
+                 lpips_hands=_lpips_hands.cpu().numpy(),
+                 l1_hands=_l1_hands.cpu().numpy(),
                  time=_time)
 
 
