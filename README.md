@@ -1,6 +1,6 @@
-# 【project name]
+# [project name]
 based on the work of [3DGS-Avatar: Animatable Avatars via Deformable 3D Gaussian Splatting](https://arxiv.org/abs/2312.09228).
-## [original Paper](https://arxiv.org/abs/2312.09228) | [Project Page](https://neuralbodies.github.io/3DGS-Avatar/index.html)
+## [Original Paper](https://arxiv.org/abs/2312.09228) | [Project Page](https://neuralbodies.github.io/3DGS-Avatar/index.html)
 
 
 ## Installation
@@ -61,9 +61,11 @@ the corresponding configuration file data_config_filename.yaml should be created
 
 ### models
 for training you need to specify the models of the deformer and pose correction modules.
+```
 rigid={identity: identity mapping for single frame; smpl_nn: use KNN for weights prediction; skinning_field_smplx: use a network for weights prediction}
 non_rigid={identity: no deformation; mlp: a single layer mlp; hashgrid: hashgrid encoding, for SMPL; hanshgrid_smplx: for SMPLX}
 pose_correction={none: pose correction disabled, direct: pose correction enabled, for SMPL; direct_smplx: pose correction enabled, for SMPLX}
+```
 
 the yaml files for each are inside the corresponding folder under configs directory. Parameters and input dimension can be adjusted by the user, via creating new files following similar manners.
 
