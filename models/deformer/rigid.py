@@ -648,7 +648,6 @@ class SkinningFieldSmplx(RigidDeform):
 
             self.aabb.update(coord_max, coord_min)
 
-
         # normalizing position 
         xyz_norm = self.aabb.normalize(xyz, sym=True)
         # get forward transform by weight * bone_transforms for each Gaussian point

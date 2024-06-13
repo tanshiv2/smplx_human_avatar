@@ -7,7 +7,7 @@ dataset:
   root_dir: "../../data/X_Humans/00036"
 
   train_subject: Take6
-  test_subject: Take10
+  test_subjects: Take8
   model_type: smplx
   train_frames: [ 0, 145, 1 ]
   val_frames: [ 0, 145, 1 ]

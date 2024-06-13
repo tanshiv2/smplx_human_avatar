@@ -33,7 +33,6 @@ class Deformer(nn.Module):
             deformed_gaussians.save_weights(f"point_cloud/deformed_gaussian_weights_{iteration}.txt")
 
 
-
         loss_reg.update(loss_non_rigid)
         return deformed_gaussians, loss_reg
 

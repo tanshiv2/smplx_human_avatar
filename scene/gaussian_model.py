@@ -535,7 +535,6 @@ class GaussianModel:
                                                torch.where(torch.norm(grads, dim=-1)>= grad_threshold /4, True, False))        
 
             selected_pts_mask = torch.logical_or(selected_pts_mask,hand_pts_mask)
-            
         selected_pts_mask = torch.logical_and(selected_pts_mask,
                                               torch.max(self.get_scaling, dim=1).values <= self.percent_dense*scene_extent)
         # import ipdb; ipdb.set_trace()
