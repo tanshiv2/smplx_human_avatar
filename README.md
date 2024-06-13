@@ -51,6 +51,7 @@ Please follow the instructions of [ARAH](https://github.com/taconite/arah-releas
 For PeopleSnapshot, we use the optimized SMPL parameters from Anim-NeRF [here](https://drive.google.com/drive/folders/1tbBJYstNfFaIpG-WBT6BnOOErqYUjn6V?usp=drive_link).
 
 ### X Humans
+For the use of X-Humans dataset, please refer to the official [website](https://xhumans.ait.ethz.ch) for terms of use and for download application.
 
 After downloading the dataset, run the following command in the project root directory:
 ```
