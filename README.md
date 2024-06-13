@@ -43,6 +43,11 @@ python extract_smpl_parameters.py
 ```
 The extracted SMPL parameters will be saved into `./body_models/misc/`.
 
+Similarly, to extract SMPL-X paramters, run the following:
+```
+python extract_smplx_parameters.py
+```
+
 ## Dataset preparation
 
 ### ZJU-MoCap
