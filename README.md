@@ -52,6 +52,18 @@ For PeopleSnapshot, we use the optimized SMPL parameters from Anim-NeRF [here](h
 
 ### X Humans
 
+After downloading the dataset, run the following command in the project root directory:
+```
+export PYTHONPATH=${PWD}
+python ./preprocess_datasets/preprocess_xhumans.py
+```
+In `./preprocess_datasets/preprocess_xhumans.py`, you can change the data path, the split (train/test) to be processed, and the human body model type (smpl/smplx).
+
+Additionally, hand masks need to be generated to calculate hand-aware losses. Run the following in the project root directory:
+```
+python render_mesh.py
+```
+You can also change the data path and the split in this file.
 
 ## Training Configurations
 
