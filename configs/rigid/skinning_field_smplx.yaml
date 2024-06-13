@@ -8,7 +8,7 @@ model:
     # same network different parameters
       name: skinning_field_smplx
 
-      lambda_knn_res: 0.7
+      lambda_knn_res: 0.0
       distill: false
       res: 64
       z_ratio: 4

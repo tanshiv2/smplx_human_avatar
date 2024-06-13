@@ -1,3 +1,4 @@
 exp/
 **/__pycache__
-
+**/point_cloud
+**/body_models

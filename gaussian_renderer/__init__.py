@@ -76,7 +76,32 @@ def render(data,
     # from SHs in Python, do it. If not, then SH -> RGB conversion will be done by rasterizer.
     shs = None
 
-    # Rasterize visible Gaussians to image, obtain their radii (on screen). 
+    # Rasterize visible Gaussians to image, obtain their radii (on screen).
+    pc_joint_labels = torch.argmax(pc.skinning_weights, dim=1)
+    pc_left_hand_mask = torch.logical_or(pc_joint_labels == 20, torch.logical_and(pc_joint_labels >= 25, pc_joint_labels <= 39))
+    pc_right_hand_mask = torch.logical_or(pc_joint_labels == 21, torch.logical_and(pc_joint_labels >= 40, pc_joint_labels <= 54))
+
+    left_hand_mask, _ = rasterizer(
+        means3D=means3D,
+        means2D=means2D,
+        shs=None,
+        colors_precomp=pc_left_hand_mask.float().unsqueeze(1).repeat(1, 3),
+        opacities=torch.ones_like(opacity).to(opacity.device),
+        scales=scales,
+        rotations=rotations,
+        cov3D_precomp=cov3D_precomp)
+
+    right_hand_mask, _ = rasterizer(
+        means3D=means3D,
+        means2D=means2D,
+        shs=None,
+        colors_precomp=pc_right_hand_mask.float().unsqueeze(1).repeat(1, 3),
+        opacities=torch.ones_like(opacity).to(opacity.device),
+        scales=scales,
+        rotations=rotations,
+        cov3D_precomp=cov3D_precomp
+    )
+
     rendered_image, radii = rasterizer(
         means3D = means3D,
         means2D = means2D,
@@ -110,4 +135,6 @@ def render(data,
             "radii": radii,
             "loss_reg": loss_reg,
             "opacity_render": opacity_image,
+            "left_hand_mask": left_hand_mask,
+            "right_hand_mask": right_hand_mask,
             }
