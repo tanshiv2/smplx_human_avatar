@@ -94,7 +94,8 @@ can be specified with option=option_filename
 **example usage**
 ```shell
 # X Humans
-python train.py dataset=x_humans_00036_1 non_rigid=hashgrid_smplx rigid=skinning_field_smplx pose_correction=none option=iter40k
+# python train.py dataset=x_humans_00036_1 non_rigid=hashgrid_smplx rigid=skinning_field_smplx pose_correction=none option=iter40k
+python train.py dataset=dataset/ablation_study/smplx/x_humans_00036_take1.yaml non_rigid=hashgrid_smplx rigid=skinning_field_smplx pose_correction=none option=iter40k
 
 # ZJU-MoCap
 python train.py dataset=zjumocap_377_mono
@@ -102,9 +103,7 @@ python train.py dataset=zjumocap_377_mono
 # PeopleSnapshot
 python train.py dataset=ps_female_3 option=iter30k pose_correction=none
 ```
-To train on a different subject, simply choose from the configs in `configs/dataset/`
-OR
-Copy a config file from `configs/datasets/ablation_study/smplx/` and change 4 fields:
+To train on a different subject, simply choose from the configs in `configs/datasets/ablation_study/smplx/` OR copy a configuration and change 4 fields:
 1. train_subject: Enter take(s) you want to train on. This can take multiple takes for a combined training
 2. val_subject: Enter take number for testing
 3. test_subject: Enter take number for rendering
