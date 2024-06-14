@@ -43,9 +43,7 @@ class Scene:
             raise ValueError
 
         self.cameras_extent = self.metadata['cameras_extent']
-        # import ipdb; ipdb.set_trace()
 
-        # for take in self.test_dataset:
         self.gaussians.create_from_pcd(self.test_dataset.readPointCloud(), spatial_lr_scale=self.cameras_extent)
 
         self.converter = GaussianConverter(cfg, self.metadata).cuda()

@@ -100,7 +100,6 @@ def training(config):
             data_stack = list(range(len(scene.train_dataset)))
         data_idx = data_stack.pop(randint(0, len(data_stack)-1))
         data = scene.train_dataset[data_idx]
-        # import ipdb; ipdb.set_trace()
 
         # Render
         if (iteration - 1) == debug_from:
@@ -346,9 +345,7 @@ def validation(iteration, testing_iterations, testing_interval, scene : Scene, e
                 image = torch.clamp(render_pkg["render"], 0.0, 1.0)
                 gt_image = torch.clamp(data.original_image.to("cuda"), 0.0, 1.0)
                 opacity_image = torch.clamp(render_pkg["opacity_render"], 0.0, 1.0)
-
-                # import ipdb; ipdb.set_trace()
-
+                
 
                 wandb_img = wandb.Image(opacity_image[None],
                                         caption=config['name'] + "_view_{}/render_opacity".format(data.image_name))
