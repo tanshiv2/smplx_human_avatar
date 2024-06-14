@@ -1,0 +1,35 @@
+# @package _global_
+dataset:
+  data_device: cuda
+  eval: false
+  img_hw:
+  - 540
+  - 540
+  model_type: smpl
+  name: x_humans
+  predict_frames:
+  - 0
+  - 0
+  - 1
+  resolution: -1
+  root_dir: ../../data/X_Humans/00036
+  train_subject: 
+  - Take1
+  - Take6
+  - Take9
+  val_subject:
+  - Take8
+  test_frames:
+    all:
+    - 0
+    - 145
+    - 1
+    pose:
+    - 0
+    - 145
+    - 1
+  test_subject: 
+  - Take10
+  # - Take11
+  white_background: false
+dataset_name: xh_00036_take169_smpl

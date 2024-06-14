@@ -372,7 +372,6 @@ class SkinningField(RigidDeform):
 
 
     def forward(self, gaussians, iteration, camera):
-
         tfs = camera.bone_transforms
         # Gaussian position
         xyz = gaussians.get_xyz

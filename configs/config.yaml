@@ -46,7 +46,7 @@ dataset:
   eval: false
 
 opt:
-  iterations: 60000
+  iterations: 100000
   grad_clip: 0.1
 
   # learning rates
@@ -93,6 +93,14 @@ opt:
   # opacity_threshold: 0.05
   opacity_threshold: 0.05
 
+  # percent_dense: 0.01
+  # densification_interval: 600
+  # opacity_reset_interval: 3000
+  # densify_from_iter: 600
+  # densify_until_iter: 60000
+  # densify_grad_threshold: 0.0002
+  # opacity_threshold: 0.05
+
 pipeline:
   convert_SHs_python: true
   compute_cov3D_python: true
@@ -104,7 +112,7 @@ debug_from: -1
 detect_anomaly: false
 test_iterations: []
 test_interval: 1000
-save_iterations: [10000]
+save_iterations: [10000, 20000, 30000]
 seed: -1
 checkpoint_iterations: [10000]
 start_checkpoint: null

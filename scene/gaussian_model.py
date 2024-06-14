@@ -7,7 +7,7 @@
 # under the terms of the LICENSE.md file.
 #
 # For inquiries contact  george.drettakis@inria.fr
-#
+
 
 import torch
 import numpy as np
@@ -451,6 +451,7 @@ class GaussianModel:
         return optimizable_tensors
 
     def densification_postfix(self, new_xyz, new_features_dc, new_features_rest, new_opacities, new_scaling, new_rotation):
+        # convert new output of densification requiring indices to optimizable tensors
         d = {"xyz": new_xyz,
         "f_dc": new_features_dc,
         "f_rest": new_features_rest,
@@ -526,6 +527,7 @@ class GaussianModel:
     # when scale is low
     def densify_and_clone(self, grads, grad_threshold, scene_extent, hand_extra_density=False):
         # Extract points that satisfy the gradient condition
+        # gradient norm along last dim should be greater than grad_threshold
         selected_pts_mask = torch.where(torch.norm(grads, dim=-1) >= grad_threshold, True, False)
 
         if hand_extra_density:

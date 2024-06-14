@@ -27,17 +27,20 @@ class X_HumansDataset(Dataset):
         # Take1
         if split == 'train':
             self.subject = cfg.get('train_subject', 'Take1')
-        else:
-            # val test predict all group to test
+        elif split == 'val':
+            # split = "train"
             split = "test"
-            self.subject = cfg.get('test_subject', 'Take8')
+            self.subject = cfg.get('val_subject', 'Take8')
+        else:
+            split = "test"
+            self.subject = cfg.get('test_subject', 'Take10')
         self.split = split
 
         # keep the same?
-        self.train_frames = cfg.train_frames
+        # self.train_frames = cfg.train_frames
         # need to
         # self.train_cams = cfg.train_views
-        self.val_frames = cfg.val_frames
+        # self.val_frames = cfg.val_frames
         # self.val_cams = cfg.val_views
         self.white_bg = cfg.white_background
         self.H, self.W = 1024, 1024  # hardcoded original size
@@ -81,25 +84,31 @@ class X_HumansDataset(Dataset):
         if self.gender not in ['male', 'female', 'neutral']:
             self.gender = 'neutral'
 
-        if split == 'train':
-            frames = self.train_frames
-        elif split == 'val':
-            frames = self.val_frames
-        elif split == 'test':
-            # frames = self.cfg.test_frames[self.cfg.test_mode]
-            frames = self.val_frames
-        elif split == 'predict':
-            frames = self.cfg.predict_frames
-        else:
-            raise ValueError
+        # if split == 'train':
+        #     frames = self.train_frames
+        # elif split == 'val':
+        #     frames = self.val_frames
+        # elif split == 'test':
+        #     # frames = self.cfg.test_frames[self.cfg.test_mode]
+        #     frames = self.val_frames
+        # elif split == 'predict':
+        #     frames = self.cfg.predict_frames
+        # else:
+        #     raise ValueError
 
         # need camera here
         # ../../data/00036/train/Take1/render/cameras.npz
-        self.cameras = np.load(os.path.join(self.root_dir, self.split, self.subject, 'render/cameras.npz'),
-                               allow_pickle=True)
-        self.cameras = [{'K': self.cameras['intrinsic'],
-                         'R': self.cameras['extrinsic'][k, :3, :3],
-                         'T': self.cameras['extrinsic'][k, :3, 3]} for k in range(frames[0], frames[1], frames[2])]
+        self.cameras = []
+        self.model_files = []
+        self.data = []
+        for take in self.subject:
+            frames = 0, len(os.listdir(os.path.join(self.root_dir, self.split, take, 'render/image'))), 1
+            self.cameras_take = np.load(os.path.join(self.root_dir, self.split, take, 'render/cameras.npz'),
+                                allow_pickle=True)
+            self.cameras.extend([{'K': self.cameras_take['intrinsic'],
+                            'R': self.cameras_take['extrinsic'][k, :3, :3],
+                            'T': self.cameras_take['extrinsic'][k, :3, 3]} for k in range(frames[0], frames[1], frames[2])])
+            # import ipdb; ipdb.set_trace()
 
         # zju has one json camera for one scene(has multiple camera view), in the format of {allcameranames:['1',...,], '1':{K:, D:, R:, T:}}
         # for example all images in Coreview_377/1 has same camera setting
@@ -119,10 +128,10 @@ class X_HumansDataset(Dataset):
         # elif self.refine:
         #     cam_names = [f'{int(cam_name) - 1:02d}' for cam_name in cam_names]
 
-        start_frame, end_frame, sampling_rate = frames
+            start_frame, end_frame, sampling_rate = frames
 
-        if split == 'predict':
-            pass
+            if split == 'predict':
+                pass
             # predict_seqs = ['gBR_sBM_cAll_d04_mBR1_ch05_view1',
             #                 'gBR_sBM_cAll_d04_mBR1_ch06_view1',
             #                 'MPI_Limits-03099-op8_poses_view1',
@@ -137,40 +146,40 @@ class X_HumansDataset(Dataset):
             # frame_slice = slice(start_frame, end_frame, sampling_rate)
             # model_files = model_files[frame_slice]
             # frames = frames[frame_slice]
-        else:
-            if self.model_type == 'smpl':
-                hand_mask_files = []
-                model_files = sorted(
-                    glob.glob(os.path.join(self.root_dir, self.split, self.subject, 'SMPL_processed/*.npz')))
-            elif self.model_type == 'smplx':
-                hand_mask_files = sorted(
-                    glob.glob(os.path.join(self.root_dir, self.split, self.subject, 'render/hand_masks/*.png'))
-                )
-                assert(len(hand_mask_files)>0)
-                model_files = sorted(
-                    glob.glob(os.path.join(self.root_dir, self.split, self.subject, 'SMPLX_processed/*.npz')))
-            # something as [000000.npz, 000001.npz,...,]
-            frames = list(range(len(model_files)))
-            # here config end_frame as files number
-            if end_frame == 0:
-                end_frame = len(model_files)
-            frame_slice = slice(start_frame, end_frame, sampling_rate)
-            model_files = model_files[frame_slice]
-            frames = frames[frame_slice]
+            else:
+                if self.model_type == 'smpl':
+                    hand_mask_files = []
+                    model_files_take = sorted(
+                        glob.glob(os.path.join(self.root_dir, self.split, take, 'SMPL_processed/*.npz')))
+                elif self.model_type == 'smplx':
+                    hand_mask_files = sorted(
+                        glob.glob(os.path.join(self.root_dir, self.split, take, 'render/hand_masks/*.png'))
+                    )
+                    assert(len(hand_mask_files)>0)
+                    model_files_take = sorted(
+                        glob.glob(os.path.join(self.root_dir, self.split, take, 'SMPLX_processed/*.npz')))
+                # something as [000000.npz, 000001.npz,...,]
+                frames = list(range(len(model_files_take)))
 
-        # add freeview rendering
-        # init false
-        if cfg.freeview:
-            # with open(os.path.join(self.root_dir, self.subject, 'freeview_cam_params.json'), 'r') as f:
-            #     self.cameras = json.load(f)
-            # what is inside data/ZJUMoCap/CoreView_377/models/000000.npz, is it similar to data/00036/train/Take1/SMPL/mesh-f00001_smpl.pkl?
-            model_dict = np.load(model_files[0])
-            trans = model_dict['transl'].astype(np.float32)
-            self.cameras = freeview_camera(self.cameras[0], trans)
+                # here config end_frame as files number
+                if end_frame == 0:
+                    end_frame = len(model_files)
+                frame_slice = slice(start_frame, end_frame, sampling_rate)
+                self.model_files.extend(model_files_take[frame_slice])
+                frames = frames[frame_slice]
 
-        self.data = []
-        if split == 'predict' or cfg.freeview:
-            pass
+            # add freeview rendering
+            # init false
+            if cfg.freeview:
+                # with open(os.path.join(self.root_dir, self.subject, 'freeview_cam_params.json'), 'r') as f:
+                #     self.cameras = json.load(f)
+                # what is inside data/ZJUMoCap/CoreView_377/models/000000.npz, is it similar to data/00036/train/Take1/SMPL/mesh-f00001_smpl.pkl?
+                model_dict = np.load(model_files[0])
+                trans = model_dict['transl'].astype(np.float32)
+                self.cameras = freeview_camera(self.cameras[0], trans)
+
+            if split == 'predict' or cfg.freeview:
+                pass
             # for cam_idx, cam_name in enumerate(cam_names):
             #     cam_dir = os.path.join(subject_dir, cam_name)
 
@@ -191,34 +200,33 @@ class X_HumansDataset(Dataset):
             #             'mask_file': mask_file,
             #             'model_file': model_file,
             #         })
-        else:
-            # loop over images
-            # Only one camera with changing extrinsic parameters
-            img_files = sorted(glob.glob(os.path.join(self.root_dir, self.split, self.subject, "render/image/*.png")))[
-                frame_slice]
-            mask_files = \
-            sorted(glob.glob(os.path.join(self.root_dir, self.split, self.subject, "render/depth/*.tiff")))[frame_slice]
-            hand_mask_files = sorted(
-                glob.glob(os.path.join(self.root_dir, self.split, self.subject, "render/hand_masks/*.png")))[frame_slice]
-            for d_idx, f_idx in enumerate(frames):
-                img_file = img_files[d_idx]
-                mask_file = mask_files[d_idx]
-                model_file = model_files[d_idx]
-                hand_mask_file = hand_mask_files[d_idx] if len(hand_mask_files) > 0 else None
+            else:
+                # loop over images
+                # Only one camera with changing extrinsic parameters
+                img_files = sorted(glob.glob(os.path.join(self.root_dir, self.split, take, "render/image/*.png")))[
+                    frame_slice]
+                mask_files = \
+                sorted(glob.glob(os.path.join(self.root_dir, self.split, take, "render/depth/*.tiff")))[frame_slice]
+                hand_mask_files = sorted(
+                    glob.glob(os.path.join(self.root_dir, self.split, take, "render/hand_masks/*.png")))[frame_slice]
+                for d_idx, f_idx in enumerate(frames):
+                    img_file = img_files[d_idx]
+                    mask_file = mask_files[d_idx]
+                    # import ipdb; ipdb.set_trace()
+                    model_file = self.model_files[len(self.data)]
+                    hand_mask_file = hand_mask_files[d_idx] if len(hand_mask_files) > 0 else None
 
-                self.data.append({
-                    'data_idx': d_idx,
-                    'frame_idx': f_idx,
-                    'img_file': img_file,
-                    'mask_file': mask_file,
-                    'model_file': model_file,
-                    'hand_mask_file': hand_mask_file
-                })
+                    self.data.append({
+                        'data_idx': len(self.data),
+                        'frame_idx': f_idx,
+                        'img_file': img_file,
+                        'mask_file': mask_file,
+                        'model_file': model_file,
+                        'hand_mask_file': hand_mask_file
+                    })
 
         self.frames = frames
-        self.model_files_list = model_files
-
-        # import ipdb; ipdb.set_trace()
+            # import ipdb; ipdb.set_trace()
         self.get_metadata()
 
         self.preload = cfg.get('preload', True)
@@ -227,8 +235,9 @@ class X_HumansDataset(Dataset):
 
     # get canonical smpl vertices, need to be smplx now
     # important, used in network
+    # check this function later!!
     def get_metadata(self):
-        data_paths = self.model_files_list
+        data_paths = self.model_files
         data_path = data_paths[0]
 
         cano_data = self.get_cano_smpl_verts(data_path)
@@ -236,7 +245,7 @@ class X_HumansDataset(Dataset):
             self.metadata = cano_data
             return
 
-        start, end, step = self.train_frames
+        start, end, step = 0, len(data_paths), 1
         frames = list(range(len(data_paths)))
         if end == 0:
             end = len(frames)
@@ -264,6 +273,7 @@ class X_HumansDataset(Dataset):
         self.metadata.update(cano_data)
         if self.cfg.train_smpl:
             self.metadata.update(self.get_smpl_data())
+        
 
     def get_cano_smpl_verts(self, data_path):
         '''
@@ -360,7 +370,7 @@ class X_HumansDataset(Dataset):
         from collections import defaultdict
         smpl_data = defaultdict(list)
 
-        for idx, (frame, model_file) in enumerate(zip(self.frames, self.model_files_list)):
+        for idx, (frame, model_file) in enumerate(zip(self.frames, self.model_files)):
             model_dict = np.load(model_file)
 
             smpl_data['frames'].append(frame)
@@ -392,6 +402,8 @@ class X_HumansDataset(Dataset):
         img_file = data_dict['img_file']
         mask_file = data_dict['mask_file']
         model_file = data_dict['model_file']
+        # import ipdb; ipdb.set_trace()
+
         hand_mask_file = data_dict['hand_mask_file']
 
         K = np.array(self.cameras[data_idx]['K'], dtype=np.float32).copy()
@@ -561,6 +573,7 @@ class X_HumansDataset(Dataset):
                 storePly(ply_path, xyz, rgb)
 
                 pcd = fetchPly(ply_path)
+        # import ipdb; ipdb.set_trace()
 
         return pcd
 
@@ -571,9 +584,9 @@ if __name__ == '__main__':
     cfg_dict = {}
     cfg_dict['root_dir'] = '../../data/X_Humans/00036/'
     cfg_dict['split'] = 'train'
-    cfg_dict['subject'] = 'Take1'
-    cfg_dict['train_frames'] = [0, 100, 1]
-    cfg_dict['val_frames'] = [100, 110, 1]
+    # cfg_dict['subject'] = 'Take1'
+    # cfg_dict['train_frames'] = [0, 100, 1]
+    # cfg_dict['val_frames'] = [100, 110, 1]
     cfg_dict['white_background'] = False
     cfg_dict['img_hw'] = (1200, 800)
     cfg_dict['model_type'] = 'smplx'
