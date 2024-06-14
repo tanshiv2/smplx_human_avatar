@@ -1,4 +1,4 @@
-# [project name]
+# SMPL-X Human Avatar: Learning Full Body Expressive Avatars From Videos
 based on the work of [3DGS-Avatar: Animatable Avatars via Deformable 3D Gaussian Splatting](https://arxiv.org/abs/2312.09228).
 ## [Original Paper](https://arxiv.org/abs/2312.09228) | [Project Page](https://neuralbodies.github.io/3DGS-Avatar/index.html)
 
@@ -85,7 +85,7 @@ non_rigid={identity: no deformation; mlp: a single layer mlp; hashgrid: hashgrid
 pose_correction={none: pose correction disabled, direct: pose correction enabled, for SMPL; direct_smplx: pose correction enabled, for SMPLX}
 ```
 
-the yaml files for each are inside the corresponding folder under configs directory. Parameters and input dimension can be adjusted by the user, via creating new files following similar manners.
+the yaml files for each are inside the corresponding folder under configs directory. Parameters and input dimension can be adjusted by the user, via creating new files following a similar manner.
 
 ### training options
 The files under the folder configs/option specifies training parameters like training iterations, operation delay, learning rate, test intervals.
@@ -93,14 +93,22 @@ can be specified with option=option_filename
 
 **example usage**
 ```shell
-# ZJU-MoCap
-python train.py dataset=zjumocap_377_mono
-# PeopleSnapshot
-python train.py dataset=ps_female_3 option=iter30k pose_correction=none
 # X Humans
 python train.py dataset=x_humans_00036_1 non_rigid=hashgrid_smplx rigid=skinning_field_smplx pose_correction=none option=iter40k
+
+# ZJU-MoCap
+python train.py dataset=zjumocap_377_mono
+
+# PeopleSnapshot
+python train.py dataset=ps_female_3 option=iter30k pose_correction=none
 ```
-To train on a different subject, simply choose from the configs in `configs/dataset/`.
+To train on a different subject, simply choose from the configs in `configs/dataset/`
+OR
+Copy a config file from `configs/datasets/ablation_study/smplx/` and change 4 fields:
+1. train_subject: Enter take(s) you want to train on. This can take multiple takes for a combined training
+2. val_subject: Enter take number for testing
+3. test_subject: Enter take number for rendering
+4. dataset_name: This is used by render.py script
 
 ### wandb setup
 We use [wandb](https://wandb.ai) for online logging, which is free of charge but needs online registration.
@@ -109,13 +117,20 @@ In the train.py script, you can edit the login setting in the main function.
 ## Evaluation
 To evaluate the method for a specified subject, run
 ```shell
+# X Humans
+python render.py mode=test dataset.test_mode=pose pose_correction=none dataset=x_humans_00036_8
+
 # ZJU-MoCap
 python render.py mode=test dataset.test_mode=view dataset=zjumocap_377_mono
 # PeopleSnapshot
 python render.py mode=test dataset.test_mode=pose pose_correction=none dataset=ps_female_3
-# X Humans
-python render.py mode=test dataset.test_mode=pose pose_correction=none dataset=x_humans_00036_8
 ```
+
+To train and evaluate in a batched approach, run
+```shell
+bash sbatch_example_script.sh
+```
+Ensure that conda executable and root directory path are correct
 
 ## Test on out-of-distribution poses
 First, please download the preprocessed AIST++ and AMASS sequence for subjects in ZJU-MoCap [here](https://drive.google.com/drive/folders/17vGpq6XGa7YYQKU4O1pI4jCMbcEXJjOI?usp=drive_link) 
